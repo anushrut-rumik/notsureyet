@@ -1,0 +1,97 @@
+TAP version 13
+# (node:57663) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: duplicate operation and second candidate for same owner are atomically blocked
+ok 1 - duplicate operation and second candidate for same owner are atomically blocked
+  ---
+  duration_ms: 29.069667
+  ...
+# Subtest: claim is durable before submission; restart with no hash never retries or unlocks
+ok 2 - claim is durable before submission; restart with no hash never retries or unlocks
+  ---
+  duration_ms: 12.172208
+  ...
+# Subtest: uncertain hashless submission reconciles an actual source event
+ok 3 - uncertain hashless submission reconciles an actual source event
+  ---
+  duration_ms: 14.389917
+  ...
+# Subtest: restart during transit keeps balances uncredited until deposit proof
+ok 4 - restart during transit keeps balances uncredited until deposit proof
+  ---
+  duration_ms: 21.053292
+  ...
+# Subtest: outer receipt success without inner consumer event is failed and remains locked
+ok 5 - outer receipt success without inner consumer event is failed and remains locked
+  ---
+  duration_ms: 12.479417
+  ...
+# Subtest: API timeout or unindexed message is pending, not a failed transfer
+ok 6 - API timeout or unindexed message is pending, not a failed transfer
+  ---
+  duration_ms: 13.799666
+  ...
+# Subtest: delivery success with caught pool failure tracks idle tokens and exact deposit recovery
+ok 7 - delivery success with caught pool failure tracks idle tokens and exact deposit recovery
+  ---
+  duration_ms: 16.485709
+  ...
+# Subtest: CCIP failure only offers recovery after current eligibility; never prepares another send
+ok 8 - CCIP failure only offers recovery after current eligibility; never prepares another send
+  ---
+  duration_ms: 13.643792
+  ...
+# Subtest: wrong destination principal/token/receipt cannot count as verified
+ok 9 - wrong destination principal/token/receipt cannot count as verified
+  ---
+  duration_ms: 2.1715
+  ...
+# Subtest: unfinalized and reorged receipts cannot complete
+ok 10 - unfinalized and reorged receipts cannot complete
+  ---
+  duration_ms: 8.74975
+  ...
+# Subtest: signed input binding and bundled fee accounting fail closed
+ok 11 - signed input binding and bundled fee accounting fail closed
+  ---
+  duration_ms: 4.634
+  ...
+# Subtest: runtime bytecode check permits only declared immutable slots to vary
+ok 12 - runtime bytecode check permits only declared immutable slots to vary
+  ---
+  duration_ms: 0.187542
+  ...
+# Subtest: the full Part 3 EIP-712 instruction and raw report match the cross-language vector
+ok 13 - the full Part 3 EIP-712 instruction and raw report match the cross-language vector
+  ---
+  duration_ms: 1.419375
+  ...
+# Subtest: an unknown source attempt only unlocks after finalized expiry, zero message state and reconciled nonces
+ok 14 - an unknown source attempt only unlocks after finalized expiry, zero message state and reconciled nonces
+  ---
+  duration_ms: 10.155708
+  ...
+# Subtest: separate processes cannot prepare two operations for one wallet
+ok 15 - separate processes cannot prepare two operations for one wallet
+  ---
+  duration_ms: 249.202625
+  ...
+# Subtest: lost deposit-retry hash is discovered from finalized destination events after restart
+ok 16 - lost deposit-retry hash is discovered from finalized destination events after restart
+  ---
+  duration_ms: 17.692459
+  ...
+# Subtest: signing helper serves only public review artifacts and rejects unexpected origins of requests
+ok 17 - signing helper serves only public review artifacts and rejects unexpected origins of requests
+  ---
+  duration_ms: 206.776375
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 860.029083

@@ -26,7 +26,10 @@
     "lending:cre:arithmetic": "npm run lending:build --silent && node scripts/lending-cre-arithmetic.mjs",
     "lending:setup:build": "node scripts/foundry.mjs forge build --evm-version cancun",
     "lending:setup": "npm run lending:build --silent && node scripts/lending-metamask-setup.mjs",
-    "lending:finish": "npm run lending:build --silent && node scripts/lending-finish-part2.mjs"
+    "lending:finish": "npm run lending:build --silent && node scripts/lending-finish-part2.mjs",
+    "lending:part3:test": "node scripts/part3/check.mjs",
+    "lending:part3": "npm run lending:build --silent && node scripts/part3/cli.mjs",
+    "lending:part3:sign": "npm run lending:build --silent && node scripts/part3/sign-server.mjs"
   },
   "dependencies": {
     "@arkiv-network/sdk": "1.0.1",

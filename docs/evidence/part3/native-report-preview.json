@@ -1,0 +1,24 @@
+{
+  "command": [
+    "cre",
+    "workflow",
+    "simulate",
+    "part3",
+    "--target",
+    "staging-settings",
+    "--config",
+    "config.report-preview.json",
+    "--non-interactive",
+    "--trigger-index",
+    "0",
+    "--http-payload",
+    "/Users/bhaskarpandit/Documents/notsureyet/tests/helpers/part3-report-vector.json"
+  ],
+  "cwd": "cre-lending",
+  "checkedAt": "2026-11-06T18:26:54.944Z",
+  "exitCode": 0,
+  "kind": "Native report metadata preview only; no report submitted",
+  "broadcast": false,
+  "sourceTransactionSent": false,
+  "output": "✓ Workflow compiled\n✓ Simulation limits enabled\n  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb\n  Binary hash: c17ca95d3721928a5851eb3f97f9e635b5abf7cea102fb1f85c85487083ad4f3\n  Config hash: f5ac00093c1b0f2425e91e7e80c280a922f21456d811551036ce7bd45c80dd32\n✓ Loaded JSON from file: /Users/bhaskarpandit/Documents/notsureyet/tests/helpers/part3-report-vector.json\n✓ Created HTTP trigger payload with 5 fields\n2026-11-06T23:56:54Z [SIMULATION] Simulator Initialized\n\n2026-11-06T23:56:54Z [SIMULATION] Running trigger trigger=http-trigger@1.0.0-alpha\n\n✓ Workflow Simulation Result:\n\"{\\\"mode\\\":\\\"testnet-report-preview\\\",\\\"executed\\\":false,\\\"workflowId\\\":\\\"0x1111111111111111111111111111111111111111111111111111111111111111\\\",\\\"workflowName\\\":\\\"eb6597b43f\\\",\\\"workflowOwner\\\":\\\"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\",\\\"reportBodyMatchesABI\\\":true}\"\n\n2026-11-06T23:56:54Z [SIMULATION] Execution finished signal received\n2026-11-06T23:56:54Z [SIMULATION] Skipping WorkflowEngineV2\n\n╭──────────────────────────────────────────────────────╮\n│ Simulation complete! Ready to deploy your workflow?  │\n│                                                      │\n│ Run cre account access to request deployment access. │\n╰──────────────────────────────────────────────────────╯\nInitializing...\nLoading settings...\n! Using default private key for chain write simulation. To use your own key, set CRE_ETH_PRIVATE_KEY in your .env file or system environment.\nChecking RPC connectivity...\nCompiling workflow...\n"
+}

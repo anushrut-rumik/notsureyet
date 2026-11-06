@@ -1,0 +1,21 @@
+Compiling 1 files with Solc 0.8.26
+Solc 0.8.26 finished in 833.44ms
+Compiler run successful!
+
+Ran 13 tests for contracts/test/lending/part3/ExecutionStrategyWallet.t.sol:ExecutionStrategyWalletTest
+[PASS] testAllTokenEntriesAccountedAndFixedOwnerRecovery() (gas: 888759)
+[PASS] testCaughtDepositFailureRetainsFullMessageAndRetriesWithoutSend() (gas: 880382)
+[PASS] testDepletedFeeBalanceBeforeWithdrawal() (gas: 127302)
+[PASS] testDuplicateAndConcurrentNewOperationCannotSend() (gas: 335665)
+[PASS] testEip712DigestMatchesIndependentViemVector() (gas: 21007)
+[PASS] testFeeDriftAndUnsupportedLaneFailBeforeWithdrawal() (gas: 143084)
+[PASS] testHappyPathExactFeeReservesAndVerifiedPosition() (gas: 741711)
+[PASS] testMainnetAndPeerRebindRejected() (gas: 85167)
+[PASS] testOfficialMockForwarderRequiresEmptyMetadataAndIndependentOwnerSignature() (gas: 4023224)
+[PASS] testOuterForwarderCanSucceedWithInnerFailure() (gas: 88848)
+[PASS] testReceiverRejectsWrongRouterPairTokensMalformedAndReplay() (gas: 855032)
+[PASS] testSourceRateExpirySignatureAndMetadataDrift() (gas: 132766)
+[PASS] testTransactionGasPriceCapStopsAssetMovement() (gas: 100984)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 44.41ms (102.90ms CPU time)
+
+Ran 1 test suite in 74.98ms (44.41ms CPU time): 13 tests passed, 0 failed, 0 skipped (13 total tests)

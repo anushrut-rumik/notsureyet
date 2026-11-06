@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-06T18:18:38.804Z",
+  "results": [
+    {
+      "name": "existing-javascript-and-financial-rules",
+      "exitCode": 0
+    },
+    {
+      "name": "part2-adapters",
+      "exitCode": 0
+    },
+    {
+      "name": "part2-cre",
+      "exitCode": 0
+    },
+    {
+      "name": "all-contracts",
+      "exitCode": 0
+    }
+  ]
+}

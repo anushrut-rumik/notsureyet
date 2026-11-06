@@ -1,0 +1,90 @@
+TAP version 13
+# Subtest: adapter reuses shared evaluator for both move and hold, preserving immutable run
+ok 1 - adapter reuses shared evaluator for both move and hold, preserving immutable run
+  ---
+  duration_ms: 22.313
+  ...
+# Subtest: RAY normalization is integer exact and refuses fractional basis points
+ok 2 - RAY normalization is integer exact and refuses fractional basis points
+  ---
+  duration_ms: 0.229292
+  ...
+# Subtest: observed amount, reserve, rates, original LINK quote and fee funding cannot drift
+ok 3 - observed amount, reserve, rates, original LINK quote and fee funding cannot drift
+  ---
+  duration_ms: 21.908958
+  ...
+# Subtest: mainnet, duplicate chains, unknown payload fields and wrong decimals fail closed
+ok 4 - mainnet, duplicate chains, unknown payload fields and wrong decimals fail closed
+  ---
+  duration_ms: 5.275541
+  ...
+# Subtest: viem raw report matches cross-language golden vector, function calldata differs
+ok 5 - viem raw report matches cross-language golden vector, function calldata differs
+  ---
+  duration_ms: 4.598416
+  ...
+# Subtest: public setup artifacts preserve exact funding amounts and isolate destination principal
+ok 6 - public setup artifacts preserve exact funding amounts and isolate destination principal
+  ---
+  duration_ms: 664.195583
+  ...
+# Subtest: unfilled example plan fails before creating transaction artifacts
+ok 7 - unfilled example plan fails before creating transaction artifacts
+  ---
+  duration_ms: 167.395583
+  ...
+# Subtest: CRE evidence logging preserves Unicode below the per-line quota and rejects truncation
+ok 8 - CRE evidence logging preserves Unicode below the per-line quota and rejects truncation
+  ---
+  duration_ms: 3.8735
+  ...
+# Subtest: setup uses owned CREATE addresses, exact reserves and ordered per-chain nonces
+ok 9 - setup uses owned CREATE addresses, exact reserves and ordered per-chain nonces
+  ---
+  duration_ms: 3.828709
+  ...
+# Subtest: setup requires independent wallet approval, detects tampered plans and rejects wrong owners
+ok 10 - setup requires independent wallet approval, detects tampered plans and rejects wrong owners
+  ---
+  duration_ms: 14.560916
+  ...
+# Subtest: admission is one-shot across simultaneous requests and uncertain signing cannot retry
+ok 11 - admission is one-shot across simultaneous requests and uncertain signing cannot retry
+  ---
+  duration_ms: 22.111875
+  ...
+# Subtest: wrong chain, changed nonce, and pre-existing deployment block sending
+ok 12 - wrong chain, changed nonce, and pre-existing deployment block sending
+  ---
+  duration_ms: 28.698042
+  ...
+# Subtest: receipt recovery validates transaction identity and nonzero real hashes before advancing
+ok 13 - receipt recovery validates transaction identity and nonzero real hashes before advancing
+  ---
+  duration_ms: 8.283
+  ...
+# Subtest: hold-rate action remains locked until deployed move evidence exists
+ok 14 - hold-rate action remains locked until deployed move evidence exists
+  ---
+  duration_ms: 7.854041
+  ...
+# Subtest: step 9 relayed execution recovers and step 10 uses the unconsumed owner nonce
+ok 15 - step 9 relayed execution recovers and step 10 uses the unconsumed owner nonce
+  ---
+  duration_ms: 11.386458
+  ...
+# Subtest: relay proof rejects wrong calls, reverted ancestors, duplicate traces and nonce drift
+ok 16 - relay proof rejects wrong calls, reverted ancestors, duplicate traces and nonce drift
+  ---
+  duration_ms: 1.971125
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1107.356167

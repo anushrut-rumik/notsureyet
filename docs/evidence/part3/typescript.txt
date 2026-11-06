@@ -1,0 +1,3 @@
+
+> lending:build
+> tsc -p tsconfig.lending.json

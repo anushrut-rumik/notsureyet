@@ -23,7 +23,7 @@ The four parts remain:
 1. **Implemented:** deterministic shared financial rules, typed application/CRE
    boundary, labelled arithmetic fixtures and local tests.
 2. Build implemented: hardened test contracts, observation adapter and read-only CRE workflow. All 11 owned deployment/funding transactions are confirmed. Finality, the final mock-rate change, and deployed-data move/hold acceptance remain pending; arithmetic move/hold cases pass in the actual simulator.
-3. Not started: CCIP execution, tracking and recovery.
+3. Local integration implemented: CCIP execution, durable tracking and recovery. Live source-to-destination deposit acceptance remains incomplete; see [Part 3](lending-part3.md).
 4. Not started: WhatsApp lending integration and scheduling.
 
 Part 1 did not broadcast transactions, create wallets, change existing wallet
@@ -546,3 +546,52 @@ The full Part 2 command passed 16 Node tests, 15 Solidity tests, 10 CRE harness
 tests and WASM compilation after this fix. `npm test` also passed its 19 existing
 JavaScript tests and 35 shared lending-rule tests. Part 3 implementation has not
 been committed; its execution contracts require separate development.
+
+## Part 3 implementation — 2026-11-06
+
+The implementation and execution guide are in [lending-part3.md](lending-part3.md).
+Part 2 source, configuration, deployed wallets and local setup state are preserved.
+Part 3 adds a separate execution wallet and CRE workflow, an owner-signed exact
+instruction, a SQLite operation journal with cross-process owner exclusion,
+finalized source/destination verification, and recovery of the original message
+or its idle delivered tokens. It does not connect WhatsApp.
+
+Current routers and exact CCIP-BnM remote-token mappings were re-read on both
+approved testnets. The existing owned Part 2 contracts were also re-read: Sepolia
+had 0.8 BnM invested and 0.2 BnM idle; Base had no invested position and 0.2 BnM
+idle. Exact addresses and blocks are in
+[existing-deployment-check.json](evidence/part3/existing-deployment-check.json).
+Those wallets intentionally disable execution and cannot be upgraded. New Part 3
+wallet setup and any principal migration must be separately reviewed after the
+ongoing Part 2 run; no old position or setup file was changed.
+
+The native CRE simulator compiled and ran the separate receiver-free target and
+report-preview target. The preview exposed fixed mock workflow identity and the
+SHA256-derived encoded workflow name. The official consumer documentation states
+that the testnet mock forwarder supplies no authenticated workflow metadata.
+The explicitly recognized mock path therefore requires empty metadata plus the
+independent owner EIP-712 signature over the entire approved action/input. It is
+not production DON authentication. The non-mock path checks all workflow identity
+fields. No workflow deployment was performed.
+
+The journal distinguishes prepared, unknown submission, submitted, source
+confirmation, in-transit delivery, destination execution, idle delivered tokens,
+verified deposit and failures. The monitor rejects an outer source success
+without the consumer's matching send event. It requires the correct destination
+token transfer into the configured pool plus the exact position increase before
+crediting completion. Timeouts stay pending. Recovery never starts another source
+transfer. Finalized expiry/no-send proof is required to release an uncertain
+source claim safely. Actual transit timestamps are recorded separately from the
+financial model's existing zero-downtime assumption.
+
+Verification commands and labelled results are in
+[test-results.json](evidence/part3/test-results.json), the native simulator
+[evidence](evidence/part3/native-startup.json), and
+[regressions.json](evidence/part3/regressions.json). The contract router fault
+injection and CRE SDK harness are local tests, not live CCIP delivery evidence.
+No Part 3 source transaction, CCIP message ID or destination transaction exists
+for this work. A completed live deposit and a live policy-cost rejection remain
+explicitly incomplete. The installed CCIP skill requires user-controlled signing
+and broadcasting; the full review/handoff and reproducible commands are in the
+Part 3 guide. Completion is not claimed until the destination lending position
+is verified.

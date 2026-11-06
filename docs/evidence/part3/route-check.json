@@ -1,0 +1,26 @@
+[
+  {
+    "chainId": "11155111",
+    "sourceSelector": "16015286601757825753",
+    "destinationSelector": "10344971235874465080",
+    "router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+    "token": "0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05",
+    "remoteToken": "0x88A2d74F47a237a62e7A51cdDa67270CE381555e",
+    "onRamp": "0x8dcf17f298c881A547D91ca4aA3C2AD7568C6777",
+    "version": "OnRamp 2.0.0",
+    "tokenPool": "0xabc0dF19Ce41b0b5e711366636e32F5914493B99",
+    "checkedAt": "2026-11-06T18:26:40.693Z"
+  },
+  {
+    "chainId": "84532",
+    "sourceSelector": "10344971235874465080",
+    "destinationSelector": "16015286601757825753",
+    "router": "0xD3b06cEbF099CE7DA4AcCf578aaebFDBd6e88a93",
+    "token": "0x88A2d74F47a237a62e7A51cdDa67270CE381555e",
+    "remoteToken": "0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05",
+    "onRamp": "0xA33b221A8427739c76f631a995ca60544bEdD632",
+    "version": "OnRamp 2.0.0",
+    "tokenPool": "0xcf7371F9bAb265ecda53ba89dC7a48c10856A6D3",
+    "checkedAt": "2026-11-06T18:26:40.805Z"
+  }
+]

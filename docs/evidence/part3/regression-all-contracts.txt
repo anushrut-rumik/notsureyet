@@ -1,0 +1,49 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/lending/EncodingVector.t.sol:EncodingVectorTest
+[PASS] testViemReportDecodesAsSolidityTuple() (gas: 2747)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 15.31ms (4.47ms CPU time)
+
+Ran 7 tests for contracts/test/CCIPSender.t.sol:CCIPSenderTest
+[PASS] testDuplicateIntentCannotSendTwice() (gas: 172325)
+[PASS] testFeeRiseCannotExceedReviewedCap() (gas: 63030)
+[PASS] testNativeFeeTransferDeliversAndRecordsMessage() (gas: 169714)
+[PASS] testRejectsInvalidAmountsAndRecipients() (gas: 19499)
+[PASS] testRequiresUserTokenAllowance() (gas: 54747)
+[PASS] testV3EncodingMatchesPythonDefault() (gas: 439)
+[PASS] testWrongNativePaymentRevertsAtomically() (gas: 45525)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 18.20ms (5.12ms CPU time)
+
+Ran 14 tests for contracts/test/lending/StrategyWallet.t.sol:StrategyWalletTest
+[PASS] testAllMoneyMovingMethodsRejectStranger() (gas: 27971)
+[PASS] testCalldataIsNotRawAbiTuple() (gas: 99401)
+[PASS] testEachInstructionFieldIsBoundAndValidated() (gas: 288368)
+[PASS] testEip712DigestMatchesIndependentViemVector() (gas: 16191)
+[PASS] testExpiryPolicyRevocationAndOverLimit() (gas: 95556)
+[PASS] testForgedSimulatorMetadataWithoutOwnerSignatureFails() (gas: 63325)
+[PASS] testInboundCcipAndUnknownSenderAlwaysRejected() (gas: 5584)
+[PASS] testInitialDepositAndReserveAndNoAccrual() (gas: 25026)
+[PASS] testOwnerCannotDepositOrWithdrawProtectedReserve() (gas: 33922)
+[PASS] testPublicCrossChainEntryAlwaysDisabled() (gas: 11545)
+[PASS] testRejectsMainnetConstruction() (gas: 139713)
+[PASS] testTwoUsersCannotWithdrawEachOthersPosition() (gas: 2826614)
+[PASS] testValidSignedReportConsumesOperationWithoutMovingMoney() (gas: 90433)
+[PASS] testWrongForwarderAndWorkflowIdentityRejected() (gas: 57640)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 35.37ms (59.47ms CPU time)
+
+Ran 12 tests for contracts/test/lending/part3/ExecutionStrategyWallet.t.sol:ExecutionStrategyWalletTest
+[PASS] testAllTokenEntriesAccountedAndFixedOwnerRecovery() (gas: 888803)
+[PASS] testCaughtDepositFailureRetainsFullMessageAndRetriesWithoutSend() (gas: 880400)
+[PASS] testDepletedFeeBalanceBeforeWithdrawal() (gas: 127257)
+[PASS] testDuplicateAndConcurrentNewOperationCannotSend() (gas: 335709)
+[PASS] testFeeDriftAndUnsupportedLaneFailBeforeWithdrawal() (gas: 143106)
+[PASS] testHappyPathExactFeeReservesAndVerifiedPosition() (gas: 741733)
+[PASS] testMainnetAndPeerRebindRejected() (gas: 85144)
+[PASS] testOfficialMockForwarderRequiresEmptyMetadataAndIndependentOwnerSignature() (gas: 4023158)
+[PASS] testOuterForwarderCanSucceedWithInnerFailure() (gas: 88825)
+[PASS] testReceiverRejectsWrongRouterPairTokensMalformedAndReplay() (gas: 855076)
+[PASS] testSourceRateExpirySignatureAndMetadataDrift() (gas: 132788)
+[PASS] testTransactionGasPriceCapStopsAssetMovement() (gas: 101006)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 35.46ms (45.98ms CPU time)
+
+Ran 4 test suites in 51.32ms (104.35ms CPU time): 34 tests passed, 0 failed, 0 skipped (34 total tests)

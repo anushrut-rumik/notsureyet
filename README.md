@@ -264,3 +264,8 @@ different decisions, so integration checks do not establish reliability for ever
 
 See [the architecture and design notes](docs/ARCHITECTURE.md) for the components,
 data flow and responsibilities of this implementation.
+
+Part 3 lending execution, monitoring and recovery are documented in
+[docs/lending-part3.md](docs/lending-part3.md). Run `npm run lending:part3:test`
+for the focused local checks. Live testnet deposit acceptance remains pending;
+Part 2 wallets and setup are preserved.

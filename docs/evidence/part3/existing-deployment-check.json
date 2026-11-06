@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-11-06T18:24:54.541Z",
+  "owner": "0x66051Eef2e7DD1b410C6E68EeDF8ABBddB783Ee1",
+  "kind": "READ ONLY: existing Part 2 deployment state; not Part 3 delivery evidence",
+  "chains": [
+    {
+      "chainId": "11155111",
+      "existingPart2Pool": "0x2D7865C71B1aF29324ffae8E34A2084898892512",
+      "existingPart2Wallet": "0xB4ECf3DBF2945D355127fD8C6f242F97917898d9",
+      "poolDeploymentTx": "0x0731e64e794c8a8af4bdd19ffd78574d1709b26463f6cd1ad4d15b9da47667db",
+      "walletDeploymentTx": "0x0eb6bc3eba5815e937ae7bff14799582e52fcd12951ec36ac909b42a26d0661e",
+      "blockNumber": "12078240",
+      "blockHash": "0xd258c0cf2c0a32f2f6a1e1a18758c4931bcf72e2cf881ad466375742c7192430",
+      "principalUnits": "800000000000000000",
+      "idleReserveUnits": "200000000000000000",
+      "walletLinkUnits": "1000000000000000000",
+      "ownerNativeWei": "118297266980464306",
+      "ownerBnMUnits": "0",
+      "ownerLinkUnits": "24000000000000000000",
+      "part3Executable": false,
+      "compatibilityReason": "Unexpected execution contract runtime length"
+    },
+    {
+      "chainId": "84532",
+      "existingPart2Pool": "0x4Cdc09581cEF7672D222eb47DE91e74576Ee8Ae6",
+      "existingPart2Wallet": "0x73AC2167E2895419cF5d17C60FBefe46f72ca206",
+      "poolDeploymentTx": "0x7b256722453e751f97618b1aff007f653c21a2d7310fc3fee1a6106118ed6718",
+      "walletDeploymentTx": "0x5735ebd7e74c287279aa123afacf2fbc0cde3039efa0dfc026ded130743b3b27",
+      "blockNumber": "55330858",
+      "blockHash": "0x98b83c3396a3fcfe43ad568ff21a23276eba5538601256b1c9c6205b0ab55d70",
+      "principalUnits": "0",
+      "idleReserveUnits": "200000000000000000",
+      "walletLinkUnits": "1000000000000000000",
+      "ownerNativeWei": "149982646994993797",
+      "ownerBnMUnits": "800000000000000000",
+      "ownerLinkUnits": "24000000000000000000",
+      "part3Executable": false,
+      "compatibilityReason": "Unexpected execution contract runtime length"
+    }
+  ],
+  "sourceTransactionSent": false,
+  "blocker": "Existing Part 2 wallets deliberately disable execution. New execution wallets and explicitly reviewed funding/migration remain user-run."
+}

@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-11-06T18:24:55.977Z",
+  "results": [
+    {
+      "name": "typescript",
+      "command": [
+        "npm",
+        "run",
+        "lending:build"
+      ],
+      "exitCode": 0,
+      "kind": "local automated verification; not live CCIP delivery"
+    },
+    {
+      "name": "journal-and-receipt-fault-injection",
+      "command": [
+        "/opt/homebrew/Cellar/node@22/22.14.0/bin/node",
+        "--test",
+        "tests/lending-part3.test.mjs"
+      ],
+      "exitCode": 0,
+      "kind": "local automated verification; not live CCIP delivery"
+    },
+    {
+      "name": "contract-fault-injection",
+      "command": [
+        "/opt/homebrew/Cellar/node@22/22.14.0/bin/node",
+        "scripts/foundry.mjs",
+        "forge",
+        "test",
+        "--evm-version",
+        "cancun",
+        "--match-path",
+        "contracts/test/lending/part3/*.sol",
+        "-vv"
+      ],
+      "exitCode": 0,
+      "kind": "local automated verification; not live CCIP delivery"
+    },
+    {
+      "name": "cre-sdk-fault-injection",
+      "command": [
+        "/Users/bhaskarpandit/Documents/notsureyet/node_modules/.bin/bun",
+        "test",
+        "tests/lending-part3-cre.test.ts"
+      ],
+      "exitCode": 0,
+      "kind": "local automated verification; not live CCIP delivery"
+    }
+  ],
+  "liveAcceptance": {
+    "completedCrossChainDeposit": false,
+    "livePolicyRejection": false
+  },
+  "limitations": [
+    "Fault-injection router is mocked; no live CCIP message created",
+    "Native CRE startup simulation is recorded separately"
+  ]
+}
