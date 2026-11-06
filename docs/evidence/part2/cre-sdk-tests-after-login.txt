@@ -1,0 +1,22 @@
+
+> lending:cre:test
+> bun test tests/lending-cre.test.ts
+
+bun test v1.3.2 (b131639c)
+
+tests/lending-cre.test.ts:
+(pass) SDK handler move matches same immutable input and shared clock [35.46ms]
+(pass) SDK handler hold matches same immutable input and shared clock [4.21ms]
+(pass) SDK handler rejects changed hash [2.73ms]
+(pass) SDK handler rejects changed rate [2.04ms]
+(pass) SDK handler rejects changed quote [2.51ms]
+(pass) SDK handler rejects changed finality [2.12ms]
+(pass) SDK handler bounds untrusted payload before JSON validation [1.00ms]
+(pass) arithmetic CRE entry labels move as fixture-only [1.28ms]
+(pass) arithmetic CRE entry labels hold as fixture-only
+(pass) arithmetic CRE entry rejects observations presented as testnet evidence [1.51ms]
+
+ 10 pass
+ 0 fail
+ 30 expect() calls
+Ran 10 tests across 1 file. [639.00ms]

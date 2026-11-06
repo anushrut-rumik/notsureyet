@@ -15,16 +15,29 @@
     "ccip:check": "node --env-file=.env scripts/check-ccip-route.mjs",
     "lending:build": "tsc -p tsconfig.lending.json",
     "lending:test": "npm run lending:build && node --test tests/lending.test.mjs",
-    "lending:examples": "npm run lending:build && node scripts/lending-examples.mjs"
+    "lending:examples": "npm run lending:build && node scripts/lending-examples.mjs",
+    "lending:contracts:test": "node scripts/foundry.mjs forge test --match-path 'contracts/test/lending/*.sol' -vv",
+    "lending:cre:build": "node scripts/compile-lending-cre.mjs",
+    "lending:part2:test": "npm run lending:build && node --test tests/lending-part2.test.mjs tests/lending-setup.test.mjs && npm run lending:contracts:test && npm run lending:cre:test && npm run lending:cre:build",
+    "lending:cre:test": "bun test tests/lending-cre.test.ts",
+    "lending:testnet": "npm run lending:build --silent && node scripts/lending-testnet.mjs",
+    "lending:plan": "npm run lending:build --silent && node scripts/lending-plan.mjs",
+    "lending:funding:artifacts": "npm run lending:build --silent && node scripts/lending-funding-artifacts.mjs",
+    "lending:cre:arithmetic": "npm run lending:build --silent && node scripts/lending-cre-arithmetic.mjs",
+    "lending:setup:build": "node scripts/foundry.mjs forge build --evm-version cancun",
+    "lending:setup": "npm run lending:build --silent && node scripts/lending-metamask-setup.mjs",
+    "lending:finish": "npm run lending:build --silent && node scripts/lending-finish-part2.mjs"
   },
   "dependencies": {
     "@arkiv-network/sdk": "1.0.1",
-    "viem": "^2.38.0",
+    "viem": "2.57.16",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@chainlink/cre-sdk": "1.23.0",
     "@foundry-rs/cast": "1.7.1",
     "@foundry-rs/forge": "1.7.1",
+    "bun": "1.3.2",
     "typescript": "5.9.3"
   }
 }

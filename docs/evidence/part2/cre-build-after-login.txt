@@ -1,0 +1,26 @@
+
+> lending:cre:build
+> node scripts/compile-lending-cre.mjs
+
+🚀 Compiling workflow
+📁 Input:   /Users/bhaskarpandit/Documents/notsureyet/cre-lending/workflow/main.ts
+🧪 JS out:  /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.js
+🎯 WASM out:/Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm
+
+📦 Step 1: Compiling JS...
+📁 Using input file: /Users/bhaskarpandit/Documents/notsureyet/cre-lending/workflow/main.ts
+Bundled 1 module in 35ms
+
+  main.js  1.58 MB  (entry point)
+
+✅ Built: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.js
+
+🔨 Step 2: Compiling to WASM...
+🔨 Compiling to WASM
+📁 Input:  /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.js
+🎯 Output: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm
+[cre-sdk-javy-plugin] Detected platform: darwin, arch: arm64
+[cre-sdk-javy-plugin] Using cached binary: /Users/bhaskarpandit/.cache/javy/v8.1.0/darwin-arm64/javy
+✅ Compiled: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm
+
+✅ Workflow built: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm

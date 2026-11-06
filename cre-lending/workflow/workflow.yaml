@@ -1,0 +1,8 @@
+staging-settings:
+  user-workflow:
+    workflow-name: lending-p2
+    deployment-registry: private
+  workflow-artifacts:
+    workflow-path: ./main.ts
+    config-path: ./config.json
+    secrets-path: ""

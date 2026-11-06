@@ -1,0 +1,131 @@
+
+> lending:part2:test
+> npm run lending:build && node --test tests/lending-part2.test.mjs && npm run lending:contracts:test && npm run lending:cre:test && npm run lending:cre:build
+
+
+> lending:build
+> tsc -p tsconfig.lending.json
+
+TAP version 13
+# Subtest: adapter reuses shared evaluator for both move and hold, preserving immutable run
+ok 1 - adapter reuses shared evaluator for both move and hold, preserving immutable run
+  ---
+  duration_ms: 16.501834
+  ...
+# Subtest: RAY normalization is integer exact and refuses fractional basis points
+ok 2 - RAY normalization is integer exact and refuses fractional basis points
+  ---
+  duration_ms: 0.13225
+  ...
+# Subtest: observed amount, reserve, rates, original LINK quote and fee funding cannot drift
+ok 3 - observed amount, reserve, rates, original LINK quote and fee funding cannot drift
+  ---
+  duration_ms: 11.898042
+  ...
+# Subtest: mainnet, duplicate chains, unknown payload fields and wrong decimals fail closed
+ok 4 - mainnet, duplicate chains, unknown payload fields and wrong decimals fail closed
+  ---
+  duration_ms: 2.67475
+  ...
+# Subtest: viem raw report matches cross-language golden vector, function calldata differs
+ok 5 - viem raw report matches cross-language golden vector, function calldata differs
+  ---
+  duration_ms: 2.737625
+  ...
+# Subtest: public setup artifacts preserve exact funding amounts and isolate destination principal
+ok 6 - public setup artifacts preserve exact funding amounts and isolate destination principal
+  ---
+  duration_ms: 595.575792
+  ...
+# Subtest: unfilled example plan fails before creating transaction artifacts
+ok 7 - unfilled example plan fails before creating transaction artifacts
+  ---
+  duration_ms: 175.152
+  ...
+# Subtest: CRE evidence logging preserves Unicode below the per-line quota and rejects truncation
+ok 8 - CRE evidence logging preserves Unicode below the per-line quota and rejects truncation
+  ---
+  duration_ms: 3.969792
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1033.79475
+
+> lending:contracts:test
+> node scripts/foundry.mjs forge test --match-path 'contracts/test/lending/*.sol' -vv
+
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/lending/EncodingVector.t.sol:EncodingVectorTest
+[PASS] testViemReportDecodesAsSolidityTuple() (gas: 3221)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 14.13ms (3.79ms CPU time)
+
+Ran 14 tests for contracts/test/lending/StrategyWallet.t.sol:StrategyWalletTest
+[PASS] testAllMoneyMovingMethodsRejectStranger() (gas: 28025)
+[PASS] testCalldataIsNotRawAbiTuple() (gas: 105104)
+[PASS] testEachInstructionFieldIsBoundAndValidated() (gas: 307463)
+[PASS] testEip712DigestMatchesIndependentViemVector() (gas: 37466)
+[PASS] testExpiryPolicyRevocationAndOverLimit() (gas: 100256)
+[PASS] testForgedSimulatorMetadataWithoutOwnerSignatureFails() (gas: 64990)
+[PASS] testInboundCcipAndUnknownSenderAlwaysRejected() (gas: 5863)
+[PASS] testInitialDepositAndReserveAndNoAccrual() (gas: 25046)
+[PASS] testOwnerCannotDepositOrWithdrawProtectedReserve() (gas: 33957)
+[PASS] testPublicCrossChainEntryAlwaysDisabled() (gas: 11554)
+[PASS] testRejectsMainnetConstruction() (gas: 140177)
+[PASS] testTwoUsersCannotWithdrawEachOthersPosition() (gas: 2871522)
+[PASS] testValidSignedReportConsumesOperationWithoutMovingMoney() (gas: 93490)
+[PASS] testWrongForwarderAndWorkflowIdentityRejected() (gas: 62439)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 35.89ms (60.09ms CPU time)
+
+Ran 2 test suites in 54.48ms (50.01ms CPU time): 15 tests passed, 0 failed, 0 skipped (15 total tests)
+
+> lending:cre:test
+> bun test tests/lending-cre.test.ts
+
+bun test v1.3.2 (b131639c)
+
+tests/lending-cre.test.ts:
+(pass) SDK handler move matches same immutable input and shared clock [35.25ms]
+(pass) SDK handler hold matches same immutable input and shared clock [4.00ms]
+(pass) SDK handler rejects changed hash [4.03ms]
+(pass) SDK handler rejects changed rate [2.35ms]
+(pass) SDK handler rejects changed quote [2.15ms]
+(pass) SDK handler rejects changed finality [3.04ms]
+(pass) SDK handler bounds untrusted payload before JSON validation [0.71ms]
+
+ 7 pass
+ 0 fail
+ 21 expect() calls
+Ran 7 tests across 1 file. [601.00ms]
+
+> lending:cre:build
+> node scripts/compile-lending-cre.mjs
+
+🚀 Compiling workflow
+📁 Input:   /Users/bhaskarpandit/Documents/notsureyet/cre-lending/workflow/main.ts
+🧪 JS out:  /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.js
+🎯 WASM out:/Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm
+
+📦 Step 1: Compiling JS...
+📁 Using input file: /Users/bhaskarpandit/Documents/notsureyet/cre-lending/workflow/main.ts
+Bundled 1 module in 88ms
+
+  main.js  1.58 MB  (entry point)
+
+✅ Built: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.js
+
+🔨 Step 2: Compiling to WASM...
+🔨 Compiling to WASM
+📁 Input:  /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.js
+🎯 Output: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm
+[cre-sdk-javy-plugin] Detected platform: darwin, arch: arm64
+[cre-sdk-javy-plugin] Using cached binary: /Users/bhaskarpandit/.cache/javy/v8.1.0/darwin-arm64/javy
+✅ Compiled: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm
+
+✅ Workflow built: /Users/bhaskarpandit/Documents/notsureyet/.local/lending-cre/main.wasm

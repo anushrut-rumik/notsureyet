@@ -1,0 +1,76 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@chainlink/cre-sdk": {
+      "name": "@chainlink/cre-sdk",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "zod"
+      ],
+      "effects": [],
+      "range": ">=0.0.1-alpha",
+      "nodes": [
+        "node_modules/@chainlink/cre-sdk"
+      ],
+      "fixAvailable": {
+        "name": "@chainlink/cre-sdk",
+        "version": "0.0.0",
+        "isSemVerMajor": true
+      }
+    },
+    "zod": {
+      "name": "zod",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1243066,
+          "name": "zod",
+          "dependency": "zod",
+          "title": "Zod can exhaust memory while validating oversized constrained collections",
+          "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+          "severity": "high",
+          "cwe": [
+            "CWE-770"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<4.6.6"
+        }
+      ],
+      "effects": [
+        "@chainlink/cre-sdk"
+      ],
+      "range": "<4.6.6",
+      "nodes": [
+        "node_modules/@chainlink/cre-sdk/node_modules/zod"
+      ],
+      "fixAvailable": {
+        "name": "@chainlink/cre-sdk",
+        "version": "0.0.0",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 2,
+      "critical": 0,
+      "total": 2
+    },
+    "dependencies": {
+      "prod": 17,
+      "dev": 49,
+      "optional": 21,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 65
+    }
+  }
+}

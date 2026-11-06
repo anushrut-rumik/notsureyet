@@ -1,0 +1,266 @@
+{
+  "interfaceVersion": "1",
+  "runId": "cre-arithmetic-hold-1793982791",
+  "networkConfigVersion": "testnet-slots-v1",
+  "context": {
+    "userId": "fixture-user",
+    "walletAddress": "0x1111111111111111111111111111111111111111",
+    "walletBindingId": "fixture-wallet-binding",
+    "policyVersion": "fixture-policy-v1"
+  },
+  "observation": {
+    "snapshotId": "cre-arithmetic-hold-1793982791-snapshot",
+    "assembledAt": "1793982791",
+    "reference": "cre-arithmetic-hold-1793982791"
+  },
+  "operationId": "cre-arithmetic-hold-1793982791-operation",
+  "policy": {
+    "version": "fixture-policy-v1",
+    "approvalId": "fixture-approval",
+    "userId": "fixture-user",
+    "walletAddress": "0x1111111111111111111111111111111111111111",
+    "approvedAt": "1793982790",
+    "deadline": "1796574791",
+    "valuationUnit": "SIM_USD",
+    "allowSimulatedInputs": true,
+    "approvedPools": [
+      {
+        "chainId": "11155111",
+        "poolId": "mock-lending-sepolia",
+        "tokenId": "CCIP-BnM"
+      },
+      {
+        "chainId": "84532",
+        "poolId": "mock-lending-base-sepolia",
+        "tokenId": "CCIP-BnM"
+      }
+    ],
+    "protectedIdleReserveUnits": "200000000000000000000",
+    "maxMovableUnits": "800000000000000000000",
+    "minNetBenefitMicrounits": "1000000",
+    "maxFeeMicrounits": "3000000",
+    "maxObservationAgeSeconds": "300",
+    "maxObservationSkewSeconds": "60",
+    "cooldownSeconds": "86400",
+    "lastMoveCompletedAt": null
+  },
+  "snapshot": {
+    "id": "cre-arithmetic-hold-1793982791-snapshot",
+    "valuation": {
+      "unit": "SIM_USD",
+      "decimals": 6,
+      "tokenDecimals": 18,
+      "priceMicrounitsPerToken": "1000000",
+      "evidence": {
+        "observedAt": "1793982791",
+        "source": "arithmetic-fixture:one-CCIP-BnM-equals-one-simulated-dollar; fictional, not a live quote",
+        "simulated": true
+      }
+    },
+    "position": {
+      "id": "fixture-single-position",
+      "userId": "fixture-user",
+      "walletAddress": "0x1111111111111111111111111111111111111111",
+      "location": {
+        "chainId": "11155111",
+        "poolId": "mock-lending-sepolia",
+        "tokenId": "CCIP-BnM"
+      },
+      "investedUnits": "800000000000000000000",
+      "movableUnits": "800000000000000000000",
+      "evidence": {
+        "observedAt": "1793982791",
+        "source": "arithmetic-fixture:800-invested-tokens; fictional, not a live quote",
+        "simulated": true
+      }
+    },
+    "reserve": {
+      "chainId": "11155111",
+      "tokenId": "CCIP-BnM",
+      "idleBalanceUnits": "200000000000000000000",
+      "committedUnits": "0",
+      "evidence": {
+        "observedAt": "1793982791",
+        "source": "arithmetic-fixture:200-idle-tokens; fictional, not a live quote",
+        "simulated": true
+      }
+    },
+    "currentPool": {
+      "location": {
+        "chainId": "11155111",
+        "poolId": "mock-lending-sepolia",
+        "tokenId": "CCIP-BnM"
+      },
+      "aprBps": "400",
+      "withdrawalAvailableUnits": "800000000000000000000",
+      "evidence": {
+        "observedAt": "1793982791",
+        "source": "arithmetic-fixture:current-4-percent-apr-and-withdrawal-liquidity; fictional, not a live quote",
+        "simulated": true
+      }
+    },
+    "destinationPool": {
+      "location": {
+        "chainId": "84532",
+        "poolId": "mock-lending-base-sepolia",
+        "tokenId": "CCIP-BnM"
+      },
+      "aprBps": "700",
+      "depositCapacityUnits": "800000000000000000000",
+      "evidence": {
+        "observedAt": "1793982791",
+        "source": "arithmetic-fixture:destination-7-percent-apr-and-deposit-capacity; fictional, not a live quote",
+        "simulated": true
+      }
+    },
+    "costs": {
+      "components": [
+        {
+          "category": "withdrawalFee",
+          "chainId": "11155111",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "0",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:withdrawalFee-explicit-zero; fictional, not a live quote",
+            "simulated": true
+          }
+        },
+        {
+          "category": "sourceApprovalGas",
+          "chainId": "11155111",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "0",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:sourceApprovalGas-explicit-zero; fictional, not a live quote",
+            "simulated": true
+          }
+        },
+        {
+          "category": "destinationApprovalGas",
+          "chainId": "84532",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "0",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:destinationApprovalGas-explicit-zero; fictional, not a live quote",
+            "simulated": true
+          }
+        },
+        {
+          "category": "sourceGas",
+          "chainId": "11155111",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "0",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:sourceGas-explicit-zero; fictional, not a live quote",
+            "simulated": true
+          }
+        },
+        {
+          "category": "bridgeFee",
+          "chainId": "11155111",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "2000000",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:2-simulated-dollars-bridge-fee; fictional, not a live quote",
+            "simulated": true
+          }
+        },
+        {
+          "category": "destinationGas",
+          "chainId": "84532",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "0",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:destinationGas-explicit-zero; fictional, not a live quote",
+            "simulated": true
+          }
+        },
+        {
+          "category": "depositFee",
+          "chainId": "84532",
+          "assetId": "SIM_FEE_ASSET",
+          "assetDecimals": 6,
+          "amountUnits": "0",
+          "priceMicrounitsPerToken": "1000000",
+          "evidence": {
+            "observedAt": "1793982791",
+            "source": "arithmetic-fixture:depositFee-explicit-zero; fictional, not a live quote",
+            "simulated": true
+          }
+        }
+      ],
+      "exitIfStay": {
+        "numeratorMicrounits": "0",
+        "denominator": "1",
+        "evidence": {
+          "observedAt": "1793982791",
+          "source": "arithmetic-fixture:exit-if-stay-zero; fictional, not a live quote",
+          "simulated": true
+        }
+      },
+      "exitIfMove": {
+        "numeratorMicrounits": "0",
+        "denominator": "1",
+        "evidence": {
+          "observedAt": "1793982791",
+          "source": "arithmetic-fixture:exit-if-move-zero; fictional, not a live quote",
+          "simulated": true
+        }
+      }
+    },
+    "feeBalances": [
+      {
+        "chainId": "11155111",
+        "assetId": "SIM_FEE_ASSET",
+        "assetDecimals": 6,
+        "availableUnits": "10000000",
+        "reservedUnits": "0",
+        "evidence": {
+          "observedAt": "1793982791",
+          "source": "arithmetic-fixture:separate-simulated-fee-funding; fictional, not a live quote",
+          "simulated": true
+        }
+      },
+      {
+        "chainId": "84532",
+        "assetId": "SIM_FEE_ASSET",
+        "assetDecimals": 6,
+        "availableUnits": "10000000",
+        "reservedUnits": "0",
+        "evidence": {
+          "observedAt": "1793982791",
+          "source": "arithmetic-fixture:separate-simulated-fee-funding; fictional, not a live quote",
+          "simulated": true
+        }
+      }
+    ],
+    "accounting": {
+      "initialDepositCostMicrounits": "0",
+      "realizedWithdrawalCostMicrounits": "0",
+      "priorRebalanceCostMicrounits": "0"
+    },
+    "pendingOperation": null,
+    "model": {
+      "rates": "unchanged",
+      "transferDowntimeSeconds": "0"
+    }
+  }
+}

@@ -1,0 +1,314 @@
+
+> test
+> node --test tests/arkiv-bridge.test.mjs tests/arkiv-current.test.mjs tests/mobile-wallet.test.mjs && npm run lending:test
+
+TAP version 13
+# Rabdi: no access key, so requests go to the public endpoint, which is heavily rate limited. Get a free key at https://hub.arkiv.network/access-keys and pass it as rabdi({ accessKey }).
+# Subtest: gas policy and trusted immutable publisher checks
+ok 1 - gas policy and trusted immutable publisher checks
+  ---
+  duration_ms: 0.588875
+  ...
+# Subtest: real SDK query renders indexed instance plus protected creator and owner filters
+ok 2 - real SDK query renders indexed instance plus protected creator and owner filters
+  ---
+  duration_ms: 4.225292
+  ...
+# Subtest: wrong network and mutable copied records are rejected
+ok 3 - wrong network and mutable copied records are rejected
+  ---
+  duration_ms: 1.071542
+  ...
+# Subtest: failed exact unsigned estimate never reaches signing or send admission
+ok 4 - failed exact unsigned estimate never reaches signing or send admission
+  ---
+  duration_ms: 1.443625
+  ...
+# Subtest: lost send response is journaled before forwarding and never resubmitted
+ok 5 - lost send response is journaled before forwarding and never resubmitted
+  ---
+  duration_ms: 43.461833
+  ...
+# Subtest: external wallet prepares without a key, admits one request, and verifies exact transaction and readback
+ok 6 - external wallet prepares without a key, admits one request, and verifies exact transaction and readback
+  ---
+  duration_ms: 38.21375
+  ...
+# Rabdi: no access key, so requests go to the public endpoint, which is heavily rate limited. Get a free key at https://hub.arkiv.network/access-keys and pass it as rabdi({ accessKey }).
+# Subtest: current state exposes protocol references and authenticates the matching immutable checkpoint
+ok 7 - current state exposes protocol references and authenticates the matching immutable checkpoint
+  ---
+  duration_ms: 4.864333
+  ...
+# Subtest: terminal checkpoint defeats replayed running head and a later reopened revision
+ok 8 - terminal checkpoint defeats replayed running head and a later reopened revision
+  ---
+  duration_ms: 1.533625
+  ...
+# Subtest: missing, duplicate, stale and tampered active heads stop recovery
+ok 9 - missing, duplicate, stale and tampered active heads stop recovery
+  ---
+  duration_ms: 1.87375
+  ...
+# Subtest: atomic v2 batch journals a lost send once; restart cannot submit another transaction
+ok 10 - atomic v2 batch journals a lost send once; restart cannot submit another transaction
+  ---
+  duration_ms: 50.730083
+  ...
+# Subtest: mobile connection refreshes permissions on Sepolia before signing the exact message
+ok 11 - mobile connection refreshes permissions on Sepolia before signing the exact message
+  ---
+  duration_ms: 4.84375
+  ...
+# Subtest: CCIP deployment is explicit contract creation on Sepolia using the existing signer
+ok 12 - CCIP deployment is explicit contract creation on Sepolia using the existing signer
+  ---
+  duration_ms: 1.238083
+  ...
+# Subtest: an account returned by connect cannot sign without current account access
+ok 13 - an account returned by connect cannot sign without current account access
+  ---
+  duration_ms: 1.105416
+  ...
+# Subtest: permission rejection stops setup without signing or saving a connection
+ok 14 - permission rejection stops setup without signing or saving a connection
+  ---
+  duration_ms: 0.629833
+  ...
+# Subtest: signing permission error records failure and never pretends the wallet connected
+ok 15 - signing permission error records failure and never pretends the wallet connected
+  ---
+  duration_ms: 0.851709
+  ...
+# Subtest: malformed wallet account never reaches personal_sign
+ok 16 - malformed wallet account never reaches personal_sign
+  ---
+  duration_ms: 0.917708
+  ...
+# Subtest: Arkiv review selects Rabdi, refreshes permissions and sends only the prepared checkpoint
+ok 17 - Arkiv review selects Rabdi, refreshes permissions and sends only the prepared checkpoint
+  ---
+  duration_ms: 0.750709
+  ...
+# Subtest: Arkiv account permission failure prevents any wallet send
+ok 18 - Arkiv account permission failure prevents any wallet send
+  ---
+  duration_ms: 0.983459
+  ...
+# Subtest: CCIP review shows amount, recipient, destination and native fees before the single signature
+ok 19 - CCIP review shows amount, recipient, destination and native fees before the single signature
+  ---
+  duration_ms: 0.944833
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 329.205583
+
+> lending:test
+> npm run lending:build && node --test tests/lending.test.mjs
+
+
+> lending:build
+> tsc -p tsconfig.lending.json
+
+TAP version 13
+# Subtest: 60-day fixture moves with exact conservative earnings and separately protected reserve
+ok 1 - 60-day fixture moves with exact conservative earnings and separately protected reserve
+  ---
+  duration_ms: 8.394875
+  ...
+# Subtest: 30-day fixture holds because extra interest does not cover costs
+ok 2 - 30-day fixture holds because extra interest does not cover costs
+  ---
+  duration_ms: 1.798542
+  ...
+# Subtest: rounding at the minimum benefit boundary is inclusive, never rounded up
+ok 3 - rounding at the minimum benefit boundary is inclusive, never rounded up
+  ---
+  duration_ms: 3.525708
+  ...
+# Subtest: an elapsed day reduces the fixed horizon; it never restarts a 60-day plan
+ok 4 - an elapsed day reduces the fixed horizon; it never restarts a 60-day plan
+  ---
+  duration_ms: 0.820167
+  ...
+# Subtest: expired horizon 0 holds with zero remaining time
+ok 5 - expired horizon 0 holds with zero remaining time
+  ---
+  duration_ms: 0.621666
+  ...
+# Subtest: expired horizon -1 holds with zero remaining time
+ok 6 - expired horizon -1 holds with zero remaining time
+  ---
+  duration_ms: 0.519042
+  ...
+# Subtest: freshness includes every price, rate, liquidity, reserve, exit quote and fee balance
+ok 7 - freshness includes every price, rate, liquidity, reserve, exit quote and fee balance
+  ---
+  duration_ms: 7.59175
+  ...
+# Subtest: freshness and observation-skew boundaries are inclusive
+ok 8 - freshness and observation-skew boundaries are inclusive
+  ---
+  duration_ms: 0.662
+  ...
+# Subtest: future observations and snapshot assembly times are blocked
+ok 9 - future observations and snapshot assembly times are blocked
+  ---
+  duration_ms: 0.85275
+  ...
+# Subtest: reserve must be idle: invested funds and existing commitments cannot substitute
+ok 10 - reserve must be idle: invested funds and existing commitments cannot substitute
+  ---
+  duration_ms: 1.369584
+  ...
+# Subtest: token fees cannot consume the reserve but may use an independently idle surplus
+ok 11 - token fees cannot consume the reserve but may use an independently idle surplus
+  ---
+  duration_ms: 1.268
+  ...
+# Subtest: unapproved source or destination chain/pool/token is blocked
+ok 12 - unapproved source or destination chain/pool/token is blocked
+  ---
+  duration_ms: 1.241667
+  ...
+# Subtest: source withdrawal liquidity and destination deposit capacity are different limits
+ok 13 - source withdrawal liquidity and destination deposit capacity are different limits
+  ---
+  duration_ms: 0.848875
+  ...
+# Subtest: movable amount cannot exceed invested balance or user limit
+ok 14 - movable amount cannot exceed invested balance or user limit
+  ---
+  duration_ms: 0.7455
+  ...
+# Subtest: fee cap is inclusive and applies after upward rounding
+ok 15 - fee cap is inclusive and applies after upward rounding
+  ---
+  duration_ms: 0.859083
+  ...
+# Subtest: cost categories are mandatory, unique and each is charged once
+ok 16 - cost categories are mandatory, unique and each is charged once
+  ---
+  duration_ms: 1.591375
+  ...
+# Subtest: fee funding is summed per chain and asset, using only unreserved available balances
+ok 17 - fee funding is summed per chain and asset, using only unreserved available balances
+  ---
+  duration_ms: 2.957
+  ...
+# Subtest: eventual exit difference is incremental; common and sunk fees are not recharged
+ok 18 - eventual exit difference is incremental; common and sunk fees are not recharged
+  ---
+  duration_ms: 0.406
+  ...
+# Subtest: exit comparison rounds the exact incremental cost up, preserving common-cost cancellation
+ok 19 - exit comparison rounds the exact incremental cost up, preserving common-cost cancellation
+  ---
+  duration_ms: 0.604583
+  ...
+# Subtest: exit savings do not hide an excessive upfront fee from the fee cap
+ok 20 - exit savings do not hide an excessive upfront fee from the fee cap
+  ---
+  duration_ms: 0.317542
+  ...
+# Subtest: zero net is a hold even with zero minimum; negative APR differences round conservatively
+ok 21 - zero net is a hold even with zero minimum; negative APR differences round conservatively
+  ---
+  duration_ms: 0.609334
+  ...
+# Subtest: cooldown completion is inclusive and future completion timestamps are rejected
+ok 22 - cooldown completion is inclusive and future completion timestamps are rejected
+  ---
+  duration_ms: 1.048792
+  ...
+# Subtest: pending prepared operation blocks overlapping moves, including its own ID
+ok 23 - pending prepared operation blocks overlapping moves, including its own ID
+  ---
+  duration_ms: 0.499708
+  ...
+# Subtest: pending withdrawing operation blocks overlapping moves, including its own ID
+ok 24 - pending withdrawing operation blocks overlapping moves, including its own ID
+  ---
+  duration_ms: 0.285958
+  ...
+# Subtest: pending in_transit operation blocks overlapping moves, including its own ID
+ok 25 - pending in_transit operation blocks overlapping moves, including its own ID
+  ---
+  duration_ms: 0.317667
+  ...
+# Subtest: pending depositing operation blocks overlapping moves, including its own ID
+ok 26 - pending depositing operation blocks overlapping moves, including its own ID
+  ---
+  duration_ms: 0.271208
+  ...
+# Subtest: pending unknown operation blocks overlapping moves, including its own ID
+ok 27 - pending unknown operation blocks overlapping moves, including its own ID
+  ---
+  duration_ms: 0.362458
+  ...
+# Subtest: pending failed operation blocks overlapping moves, including its own ID
+ok 28 - pending failed operation blocks overlapping moves, including its own ID
+  ---
+  duration_ms: 0.255666
+  ...
+# Subtest: missing or malformed required financial data fails closed, without exceptions
+ok 29 - missing or malformed required financial data fails closed, without exceptions
+  ---
+  duration_ms: 5.996917
+  ...
+# Subtest: invalid clocks are blocked; the injected clock is read exactly once
+ok 30 - invalid clocks are blocked; the injected clock is read exactly once
+  ---
+  duration_ms: 0.426667
+  ...
+# Subtest: financial integers above JS safe-integer range preserve exact precision
+ok 31 - financial integers above JS safe-integer range preserve exact precision
+  ---
+  duration_ms: 0.390542
+  ...
+# Subtest: run schema isolates immutable inputs and bound immutable outputs
+ok 32 - run schema isolates immutable inputs and bound immutable outputs
+  ---
+  duration_ms: 1.095666
+  ...
+# Subtest: different users/runs remain isolated without rewriting shared configuration
+ok 33 - different users/runs remain isolated without rewriting shared configuration
+  ---
+  duration_ms: 0.925708
+  ...
+# Subtest: identity, policy version, observation, operation and configuration mismatches are blocked
+ok 34 - identity, policy version, observation, operation and configuration mismatches are blocked
+  ---
+  duration_ms: 1.724083
+  ...
+# Subtest: simulation, unit and model limitations are explicit
+ok 35 - simulation, unit and model limitations are explicit
+  ---
+  duration_ms: 0.816084
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 142.073875
+........................................................................ [ 38%]
+......................................ss................................ [ 77%]
+...........................................                              [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/websockets/legacy/__init__.py:6
+  /Users/bhaskarpandit/Documents/notsureyet/.venv/lib/python3.13/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+185 passed, 2 skipped, 1 warning in 19.35s

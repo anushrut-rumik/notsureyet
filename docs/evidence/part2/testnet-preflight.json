@@ -1,0 +1,42 @@
+[
+  {
+    "chainId": "11155111",
+    "name": "ethereum-testnet-sepolia",
+    "selector": "16015286601757825753",
+    "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+    "router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+    "token": "0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05",
+    "link": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
+    "forwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "actualChainId": "11155111",
+    "tokenDecimals": 18,
+    "linkDecimals": 18,
+    "onRamp": "0x8dcf17f298c881A547D91ca4aA3C2AD7568C6777",
+    "version": "OnRamp 2.0.0",
+    "tokenPool": "0xabc0dF19Ce41b0b5e711366636e32F5914493B99",
+    "finalizedBlock": "12077515",
+    "finalizedHash": "0x17372beb94eb318354554b6aa669123c6f7f6c15abb2c26e54d254015b0e64e0",
+    "checkedAt": "2026-11-06T15:56:35.807Z",
+    "funding": null
+  },
+  {
+    "chainId": "84532",
+    "name": "ethereum-testnet-sepolia-base-1",
+    "selector": "10344971235874465080",
+    "rpc": "https://base-sepolia-rpc.publicnode.com",
+    "router": "0xD3b06cEbF099CE7DA4AcCf578aaebFDBd6e88a93",
+    "token": "0x88A2d74F47a237a62e7A51cdDa67270CE381555e",
+    "link": "0xE4aB69C077896252FAFBD49EFD26B5D171A32410",
+    "forwarder": "0x82300bd7c3958625581cc2f77bc6464dcecdf3e5",
+    "actualChainId": "84532",
+    "tokenDecimals": 18,
+    "linkDecimals": 18,
+    "onRamp": "0xA33b221A8427739c76f631a995ca60544bEdD632",
+    "version": "OnRamp 2.0.0",
+    "tokenPool": "0xcf7371F9bAb265ecda53ba89dC7a48c10856A6D3",
+    "finalizedBlock": "55287217",
+    "finalizedHash": "0x83b79155772f0ce973802e8173bb3974dfb9b2bd7a9d6dbabfbeb0dad7f2e1ac",
+    "checkedAt": "2026-11-06T15:56:37.330Z",
+    "funding": null
+  }
+]

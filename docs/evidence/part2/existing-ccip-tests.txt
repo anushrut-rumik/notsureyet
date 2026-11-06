@@ -1,0 +1,13 @@
+No files changed, compilation skipped
+
+Ran 7 tests for contracts/test/CCIPSender.t.sol:CCIPSenderTest
+[PASS] testDuplicateIntentCannotSendTwice() (gas: 173152)
+[PASS] testFeeRiseCannotExceedReviewedCap() (gas: 63670)
+[PASS] testNativeFeeTransferDeliversAndRecordsMessage() (gas: 170472)
+[PASS] testRejectsInvalidAmountsAndRecipients() (gas: 19533)
+[PASS] testRequiresUserTokenAllowance() (gas: 55388)
+[PASS] testV3EncodingMatchesPythonDefault() (gas: 442)
+[PASS] testWrongNativePaymentRevertsAtomically() (gas: 46147)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 23.48ms (19.97ms CPU time)
+
+Ran 1 test suite in 57.16ms (23.48ms CPU time): 7 tests passed, 0 failed, 0 skipped (7 total tests)

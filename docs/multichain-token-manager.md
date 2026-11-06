@@ -1,6 +1,6 @@
 # Multichain token manager — persistent project reference
 
-Last updated: 2026-11-06. **Part 1 only: shared decision logic.** Maintain this
+Last updated: 2026-11-06. **Parts 1–2: shared rules and testnet/CRE build. Live Part 2 acceptance pending.** Maintain this
 document in every later part, including actual commands, results and blockers.
 
 ## Product scope
@@ -22,7 +22,7 @@ The four parts remain:
 
 1. **Implemented:** deterministic shared financial rules, typed application/CRE
    boundary, labelled arithmetic fixtures and local tests.
-2. Not started: testnet pool contracts, observations and CRE dry runs.
+2. Build implemented: hardened test contracts, observation adapter and read-only CRE workflow. All 11 owned deployment/funding transactions are confirmed. Finality, the final mock-rate change, and deployed-data move/hold acceptance remain pending; arithmetic move/hold cases pass in the actual simulator.
 3. Not started: CCIP execution, tracking and recovery.
 4. Not started: WhatsApp lending integration and scheduling.
 
@@ -393,3 +393,156 @@ receiver-free dry-run workflow; and validate the pinned dependencies in WASM.
 Execution additionally needs atomic operation admission, wallet authority,
 reconciliation of source/destination effects and accounting for actual downtime.
 WhatsApp scheduling/admission and live recipient experience remain Part 4.
+
+
+## Part 2 implementation — 2026-11-06
+
+The detailed, runnable guide is [lending-part2.md](lending-part2.md). It records
+user-run setup actions, configuration, source links, exact commands and remaining
+prerequisites. Part 1's financial decision implementation and tests are preserved.
+
+New components:
+
+- `contracts/src/lending/MockPool.sol`: per-caller principal, capacity checks,
+  owner-controlled RAY APR and no interest accrual.
+- `contracts/src/lending/TestStrategyWallet.sol`: dedicated per-user wallet,
+  protected idle reserve, owner-only money movement, independently signed EIP-712
+  report admission, canonical raw tuple validation, operation consumption and
+  fail-closed disabled cross-chain execution. No inbound CCIP pair is admitted.
+- `contracts/script/lending/DeployLending.s.sol`: **one testnet per invocation**,
+  unlike the inspected upstream script that deploys both. Separate setup/funding
+  script makes an actual initial deposit and checks reserve postconditions.
+- `lending/testnets.ts`, `observation.ts`, `report.ts`: verified infrastructure,
+  immutable block-bound input checks, exact RAY conversion and raw ABI reports.
+- `cre-lending`: complete HTTP-triggered CRE entry point. Only onchain reads are
+  available in its implementation; no HTTP client, report delivery or rebalance
+  send. Independent capability calls start before any result is resolved. The
+  same shared evaluator uses the consensus runtime clock.
+- `scripts/lending-plan.mjs`, `lending-funding-artifacts.mjs`,
+  `lending-testnet.mjs`: public review artifacts, unsigned funding calldata,
+  read-only preflight/receipt/funding checks, snapshot preparation and simulator
+  evidence comparison. Null plan fields deliberately require real user values.
+
+The CLI scaffolding command was attempted and refused due to missing login, so
+the deployed-data workflow was written using the inspected template layout.
+After login, the CLI successfully scaffolded a separate `arithmetic-check`
+workflow. The project now has explicit `staging-settings` and `local-simulation`
+targets with `private` registry selectors, two testnet RPCs and closed read-only
+configuration. A target name is not relied on to prevent
+mainnet access: constructor/script guards, allowed chain IDs, fixed selectors,
+RPC verification, wallet binding and CRE onchain checks enforce the scope.
+
+Actual evidence:
+
+| Check | Observed result |
+| --- | --- |
+| Part 1 focused tests | 35 passed again |
+| Part 2 adapter/artifact/encoding/evidence and setup tests | 16 passed, including relay recovery and subsequent nonce handling |
+| New Foundry authorization/encoding tests | 15 passed |
+| CRE SDK harness tests | 10 passed; includes move, hold, block/hash/rate/quote drift and payload size |
+| CRE SDK compiler | Complete workflow compiled to WASM using the shared decision function |
+| Both testnet RPCs/lanes/BnM/LINK/forwarders | Live read-only preflight passed; original units and infrastructure evidence recorded |
+| Existing JavaScript tests | 19 passed, plus 35 Part 1 lending tests |
+| Python tests | 185 passed, 2 paid live tests skipped |
+| Existing CCIP Foundry suite | 7 passed |
+| Actual CRE simulator | Login verified; both arithmetic move/hold runs exited 0 and exactly matched local evaluation |
+| Owned deployments, faucet funding, initial deposit | 11 setup transactions confirmed through the wallet review; finality still pending |
+| Actual router quotes for our candidate wallet pair | Pending deployment and configuration |
+| Deployed-data move/hold parity and unchanged balances | Move verifier waiting for Base Sepolia funding finality; final hold-rate change and hold verification remain pending |
+
+Raw build/test output: [build-and-tests.txt](evidence/part2/build-and-tests.txt).
+Live infrastructure: [testnet-preflight.json](evidence/part2/testnet-preflight.json).
+Simulator failure: [simulator-attempt.txt](evidence/part2/simulator-attempt.txt).
+A Node or SDK mock result is not presented as actual CRE execution.
+
+The requested non-broadcast invocation was attempted from the correct project
+root:
+
+```sh
+cd cre-lending
+cre workflow simulate workflow --target staging-settings --non-interactive --trigger-index 0
+```
+
+After owned setup, include the immutable HTTP payload or use the
+wrapper, which checks balances before and after and compares at CRE's exact
+returned evaluation time:
+
+```sh
+npm run lending:testnet -- prepare .local/lending-review/manifest.json .local/lending-review/seed-run.json .local/lending-review/move-input.json
+npm run lending:testnet -- simulate .local/lending-review/move-input.json .local/lending-review/move-evidence.json
+```
+
+Run again with new IDs and evidence after a separately signed, finalized mock
+rate configuration transaction to exercise hold. Keep policy thresholds intact.
+The workflow never changes rates or sends that transaction itself. Small faucet
+amounts can legitimately hold even at 7% APR. Higher controlled rates must be
+explicitly reviewed and labelled fictional; no actual yield claim follows.
+
+New pins: CRE SDK 1.23.0, Bun 1.3.2, Javy plugin 1.7.0 and Javy 8.1.0. Viem is
+pinned at its already resolved 2.57.16. Solidity/Foundry/CCIP locks are preserved.
+The SDK's internal Zod 3.25.76 introduces two high npm audit findings through the
+collection-size advisory; application/run schemas stay on Zod 4.6.7. A blanket
+Zod 4 override is incompatible with the SDK's function schemas. Payloads are
+bounded before validation and this remains a local test-only workflow; see the
+Part 2 guide for the dependency limitation.
+
+The installed CCIP skill explicitly says “Never deploy, register, bridge,
+transfer, mint, burn, approve, or execute onchain manually.” Its exact source is
+[SKILL.md](../.agents/skills/chainlink-ccip-skill/SKILL.md). Accordingly setup
+transactions are prepared for the user's wallet, not executed by the agent.
+CRE login has since been completed and verified. The remaining owned setup
+steps are the outstanding prerequisites, not
+successful deployment/funding claims. No WhatsApp integration or Part 3 execution
+has been added.
+
+
+### Native CRE arithmetic follow-up
+
+After login, `cre init --non-interactive --project-root cre-lending --workflow-name
+arithmetic-check --deployment-registry private --template hello-world-ts`
+succeeded. Its sample handler/tests/config/dependencies were replaced before
+execution. The new workflow imports the same evaluator and accepts only labelled
+arithmetic fixtures; it performs no contract reads, report delivery or sends.
+`npm run lending:cre:arithmetic -- docs/evidence/part2/native-arithmetic-verified`
+ran both cases through the actual CLI. Exact commands and complete public inputs
+and outputs are saved in each [move evidence](evidence/part2/native-arithmetic-verified/move-evidence.json)
+and [hold evidence](evidence/part2/native-arithmetic-verified/hold-evidence.json).
+Both exited 0 and matched local evaluation at the returned CRE clock. The net
+improvements were 1,945,194 and −27,408 micro-SIM_USD respectively; compilation
+elapsed time reduces the fixed remaining horizon slightly. Thresholds did not
+change. This proves shared-rule execution in CRE, while owned deployed-data
+acceptance remains pending. CLI startup requires explicit testnet RPC settings
+even for this no-EVM arithmetic handler; the initially empty local target failed
+and was corrected without adding mainnet access.
+
+At the earlier wallet-instructions stage, dedicated signer setup was not yet done. The
+[step-by-step wallet section](lending-part2.md#create-the-dedicated-test-wallet)
+now supplies the verified encrypted-keystore creation command for the user to
+run locally. Only its public address is needed for subsequent read-only funding
+checks. The manifest is created after deployment, not a prerequisite to creating
+the wallet. CRE deploy access remains disabled; it was not needed for these local
+simulations and no workflow deployment was attempted.
+
+### Owned setup and MetaMask relay recovery
+
+The owner subsequently signed the exact setup plan and completed all 11 initial
+deployment/funding actions. The source pool contains the initial deposit and
+the destination setup is recorded as confirmed. Base Sepolia finality and the
+actual deployed-data move/hold acceptance checks remain pending. Step 12 changes
+the destination mock rate and intentionally stays locked until move verification
+passes. These confirmations do not establish finalized setup or a successful
+cross-chain rebalance.
+
+Step 9 was sent through MetaMask's relay. Its successful internal owner call was
+initially rejected because the checker expected the outer sender to be the
+owner. The checker now requires a canonical receipt and a successful execution
+trace proving the exact owner, target, calldata and zero ETH value. It rejects
+extra owner calls, reverted ancestors and mismatched block/transaction evidence.
+Verified relays that leave the owner nonce unchanged are accounted for in later
+transaction requests. The signed plan and CREATE addresses are preserved.
+Manifests retain the exact funding calls for the final read-only verifier.
+
+The full Part 2 command passed 16 Node tests, 15 Solidity tests, 10 CRE harness
+tests and WASM compilation after this fix. `npm test` also passed its 19 existing
+JavaScript tests and 35 shared lending-rule tests. Part 3 implementation has not
+been committed; its execution contracts require separate development.

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: setup uses owned CREATE addresses, exact reserves and ordered per-chain nonces
+ok 1 - setup uses owned CREATE addresses, exact reserves and ordered per-chain nonces
+  ---
+  duration_ms: 17.005291
+  ...
+# Subtest: setup requires independent wallet approval, detects tampered plans and rejects wrong owners
+ok 2 - setup requires independent wallet approval, detects tampered plans and rejects wrong owners
+  ---
+  duration_ms: 60.896833
+  ...
+# Subtest: admission is one-shot across simultaneous requests and uncertain signing cannot retry
+ok 3 - admission is one-shot across simultaneous requests and uncertain signing cannot retry
+  ---
+  duration_ms: 41.262542
+  ...
+# Subtest: wrong chain, changed nonce, and pre-existing deployment block sending
+ok 4 - wrong chain, changed nonce, and pre-existing deployment block sending
+  ---
+  duration_ms: 42.060334
+  ...
+# Subtest: receipt recovery validates transaction identity and nonzero real hashes before advancing
+ok 5 - receipt recovery validates transaction identity and nonzero real hashes before advancing
+  ---
+  duration_ms: 13.243042
+  ...
+# Subtest: hold-rate action remains locked until deployed move evidence exists
+ok 6 - hold-rate action remains locked until deployed move evidence exists
+  ---
+  duration_ms: 19.094916
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 683.270625

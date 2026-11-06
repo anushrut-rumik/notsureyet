@@ -1,0 +1,190 @@
+{
+  "scope": "arithmetic-only",
+  "command": "cre workflow simulate arithmetic-check --target local-simulation --non-interactive --trigger-index 0 --http-payload /Users/bhaskarpandit/Documents/notsureyet/docs/evidence/part2/native-arithmetic-verified/move-input.json",
+  "cwd": "/Users/bhaskarpandit/Documents/notsureyet/cre-lending",
+  "exitCode": 0,
+  "deployedContractsRead": false,
+  "broadcast": false,
+  "expected": "move",
+  "localMatchesCRE": true,
+  "actual": {
+    "mode": "local-simulation",
+    "scope": "arithmetic-only",
+    "deployedContractsRead": false,
+    "broadcast": false,
+    "result": {
+      "interfaceVersion": "1",
+      "runId": "cre-arithmetic-move-1793982776",
+      "networkConfigVersion": "testnet-slots-v1",
+      "context": {
+        "userId": "fixture-user",
+        "walletAddress": "0x1111111111111111111111111111111111111111",
+        "walletBindingId": "fixture-wallet-binding",
+        "policyVersion": "fixture-policy-v1"
+      },
+      "observation": {
+        "snapshotId": "cre-arithmetic-move-1793982776-snapshot",
+        "assembledAt": "1793982776",
+        "reference": "cre-arithmetic-move-1793982776"
+      },
+      "operationId": "cre-arithmetic-move-1793982776-operation",
+      "decision": {
+        "action": "move",
+        "code": "POSITIVE_NET_IMPROVEMENT",
+        "reason": "Expected net improvement is positive and meets the approved limits.",
+        "evaluatedAt": "1793982791",
+        "calculation": {
+          "valuationUnit": "SIM_USD",
+          "valuationDecimals": 6,
+          "remainingSeconds": "5183985",
+          "yearSeconds": "31536000",
+          "movableUnits": "800000000000000000000",
+          "protectedIdleReserveUnits": "200000000000000000000",
+          "aprDeltaBps": "300",
+          "interestNumerator": "1244156400000000000000000000000000000",
+          "interestDenominator": "315360000000000000000000000000",
+          "additionalInterestMicrounits": "3945194",
+          "costBreakdown": [
+            {
+              "category": "withdrawalFee",
+              "costMicrounits": "0"
+            },
+            {
+              "category": "sourceApprovalGas",
+              "costMicrounits": "0"
+            },
+            {
+              "category": "destinationApprovalGas",
+              "costMicrounits": "0"
+            },
+            {
+              "category": "sourceGas",
+              "costMicrounits": "0"
+            },
+            {
+              "category": "bridgeFee",
+              "costMicrounits": "2000000"
+            },
+            {
+              "category": "destinationGas",
+              "costMicrounits": "0"
+            },
+            {
+              "category": "depositFee",
+              "costMicrounits": "0"
+            }
+          ],
+          "upfrontCostMicrounits": "2000000",
+          "exitCostDifferenceMicrounits": "0",
+          "incrementalCostMicrounits": "2000000",
+          "feeLimitChargeMicrounits": "2000000",
+          "netImprovementMicrounits": "1945194",
+          "strategyAccounting": {
+            "initialDepositCostMicrounits": "0",
+            "realizedWithdrawalCostMicrounits": "0",
+            "priorRebalanceCostMicrounits": "0",
+            "estimatedExitIfStayMicrounits": "0",
+            "estimatedExitIfMoveMicrounits": "0"
+          },
+          "estimate": true,
+          "simulated": true,
+          "assumptions": [
+            "APR remains unchanged until the fixed approved deadline.",
+            "Transfer downtime is zero; later execution must record actual time in transit.",
+            "The full movable amount is deposited; all fees are funded separately from unreserved idle balances.",
+            "A year is exactly 365 days. This estimate is not a promise of earnings."
+          ]
+        },
+        "issues": []
+      }
+    }
+  },
+  "local": {
+    "interfaceVersion": "1",
+    "runId": "cre-arithmetic-move-1793982776",
+    "networkConfigVersion": "testnet-slots-v1",
+    "context": {
+      "userId": "fixture-user",
+      "walletAddress": "0x1111111111111111111111111111111111111111",
+      "walletBindingId": "fixture-wallet-binding",
+      "policyVersion": "fixture-policy-v1"
+    },
+    "observation": {
+      "snapshotId": "cre-arithmetic-move-1793982776-snapshot",
+      "assembledAt": "1793982776",
+      "reference": "cre-arithmetic-move-1793982776"
+    },
+    "operationId": "cre-arithmetic-move-1793982776-operation",
+    "decision": {
+      "action": "move",
+      "code": "POSITIVE_NET_IMPROVEMENT",
+      "reason": "Expected net improvement is positive and meets the approved limits.",
+      "evaluatedAt": "1793982791",
+      "calculation": {
+        "valuationUnit": "SIM_USD",
+        "valuationDecimals": 6,
+        "remainingSeconds": "5183985",
+        "yearSeconds": "31536000",
+        "movableUnits": "800000000000000000000",
+        "protectedIdleReserveUnits": "200000000000000000000",
+        "aprDeltaBps": "300",
+        "interestNumerator": "1244156400000000000000000000000000000",
+        "interestDenominator": "315360000000000000000000000000",
+        "additionalInterestMicrounits": "3945194",
+        "costBreakdown": [
+          {
+            "category": "withdrawalFee",
+            "costMicrounits": "0"
+          },
+          {
+            "category": "sourceApprovalGas",
+            "costMicrounits": "0"
+          },
+          {
+            "category": "destinationApprovalGas",
+            "costMicrounits": "0"
+          },
+          {
+            "category": "sourceGas",
+            "costMicrounits": "0"
+          },
+          {
+            "category": "bridgeFee",
+            "costMicrounits": "2000000"
+          },
+          {
+            "category": "destinationGas",
+            "costMicrounits": "0"
+          },
+          {
+            "category": "depositFee",
+            "costMicrounits": "0"
+          }
+        ],
+        "upfrontCostMicrounits": "2000000",
+        "exitCostDifferenceMicrounits": "0",
+        "incrementalCostMicrounits": "2000000",
+        "feeLimitChargeMicrounits": "2000000",
+        "netImprovementMicrounits": "1945194",
+        "strategyAccounting": {
+          "initialDepositCostMicrounits": "0",
+          "realizedWithdrawalCostMicrounits": "0",
+          "priorRebalanceCostMicrounits": "0",
+          "estimatedExitIfStayMicrounits": "0",
+          "estimatedExitIfMoveMicrounits": "0"
+        },
+        "estimate": true,
+        "simulated": true,
+        "assumptions": [
+          "APR remains unchanged until the fixed approved deadline.",
+          "Transfer downtime is zero; later execution must record actual time in transit.",
+          "The full movable amount is deposited; all fees are funded separately from unreserved idle balances.",
+          "A year is exactly 365 days. This estimate is not a promise of earnings."
+        ]
+      },
+      "issues": []
+    }
+  },
+  "error": null,
+  "output": "Initializing...\nLoading settings...\n! Using default private key for chain write simulation. To use your own key, set CRE_ETH_PRIVATE_KEY in your .env file or system environment.\nChecking RPC connectivity...\nCompiling workflow...\n✓ Workflow compiled\n✓ Simulation limits enabled\n  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb\n  Binary hash: 7b500480a9f3b453018af5ac766ed84aa87e3ed2b644ef0e3ef16411199da5cc\n  Config hash: baf153b2cd900adbd418295b9a7c41a3f1bcaec6af61285efe20242d3e833fef\n✓ Loaded JSON from file: /Users/bhaskarpandit/Documents/notsureyet/docs/evidence/part2/native-arithmetic-verified/move-input.json\n✓ Created HTTP trigger payload with 8 fields\n2026-11-06T22:03:10Z [SIMULATION] Simulator Initialized\n\n2026-11-06T22:03:10Z [SIMULATION] Running trigger trigger=http-trigger@1.0.0-alpha\n2026-11-06T22:03:11Z [USER LOG] PART2_RESULT_CHUNK=0/3:{\"mode\":\"local-simulation\",\"scope\":\"arithmetic-only\",\"deployedContractsRead\":false,\"broadcast\":false,\"result\":{\"interfaceVersion\":\"1\",\"runId\":\"cre-arithmetic-move-1793982776\",\"networkConfigVersion\":\"testnet-slots-v1\",\"context\":{\"userId\":\"fixture-user\",\"walletAddress\":\"0x1111111111111111111111111111111111111111\",\"walletBindingId\":\"fixture-wallet-binding\",\"policyVersion\":\"fixture-policy-v1\"},\"observation\":{\"snapshotId\":\"cre-arithmetic-move-1793982776-snapshot\",\"assembledAt\":\"1793982776\",\"reference\":\"cre-arithmetic-move-1793982776\"},\"operationId\":\"cre-arithmetic-move-1793982776-operation\",\"decision\":{\"action\":\"move\",\"code\":\"POSITIVE_NET_IMPROVEMENT\",\"reason\":\"Expected net improvement is positive and meets the approved limits.\",\"evaluatedAt\":\"1793982791\",\"calculation\":{\"valuationUnit\":\"SIM_USD\n2026-11-06T22:03:11Z [USER LOG] PART2_RESULT_CHUNK=1/3:\",\"valuationDecimals\":6,\"remainingSeconds\":\"5183985\",\"yearSeconds\":\"31536000\",\"movableUnits\":\"800000000000000000000\",\"protectedIdleReserveUnits\":\"200000000000000000000\",\"aprDeltaBps\":\"300\",\"interestNumerator\":\"1244156400000000000000000000000000000\",\"interestDenominator\":\"315360000000000000000000000000\",\"additionalInterestMicrounits\":\"3945194\",\"costBreakdown\":[{\"category\":\"withdrawalFee\",\"costMicrounits\":\"0\"},{\"category\":\"sourceApprovalGas\",\"costMicrounits\":\"0\"},{\"category\":\"destinationApprovalGas\",\"costMicrounits\":\"0\"},{\"category\":\"sourceGas\",\"costMicrounits\":\"0\"},{\"category\":\"bridgeFee\",\"costMicrounits\":\"2000000\"},{\"category\":\"destinationGas\",\"costMicrounits\":\"0\"},{\"category\":\"depositFee\",\"costMicrounits\":\"0\"}],\"upfrontCostMicrounits\":\"2000000\",\"exitCostDifferenceMicrounits\":\"0\",\"incremen\n2026-11-06T22:03:11Z [USER LOG] PART2_RESULT_CHUNK=2/3:talCostMicrounits\":\"2000000\",\"feeLimitChargeMicrounits\":\"2000000\",\"netImprovementMicrounits\":\"1945194\",\"strategyAccounting\":{\"initialDepositCostMicrounits\":\"0\",\"realizedWithdrawalCostMicrounits\":\"0\",\"priorRebalanceCostMicrounits\":\"0\",\"estimatedExitIfStayMicrounits\":\"0\",\"estimatedExitIfMoveMicrounits\":\"0\"},\"estimate\":true,\"simulated\":true,\"assumptions\":[\"APR remains unchanged until the fixed approved deadline.\",\"Transfer downtime is zero; later execution must record actual time in transit.\",\"The full movable amount is deposited; all fees are funded separately from unreserved idle balances.\",\"A year is exactly 365 days. This estimate is not a promise of earnings.\"]},\"issues\":[]}}}\n\n✓ Workflow Simulation Result:\n\"{\\\"mode\\\":\\\"local-simulation\\\",\\\"scope\\\":\\\"arithmetic-only\\\",\\\"deployedContractsRead\\\":false,\\\"broadcast\\\":false,\\\"result\\\":{\\\"interfaceVersion\\\":\\\"1\\\",\\\"runId\\\":\\\"cre-arithmetic-move-1793982776\\\",\\\"networkConfigVersion\\\":\\\"testnet-slots-v1\\\",\\\"context\\\":{\\\"userId\\\":\\\"fixture-user\\\",\\\"walletAddress\\\":\\\"0x1111111111111111111111111111111111111111\\\",\\\"walletBindingId\\\":\\\"fixture-wallet-binding\\\",\\\"policyVersion\\\":\\\"fixture-policy-v1\\\"},\\\"observation\\\":{\\\"snapshotId\\\":\\\"cre-arithmetic-move-1793982776-snapshot\\\",\\\"assembledAt\\\":\\\"1793982776\\\",\\\"reference\\\":\\\"cre-arithmetic-move-1793982776\\\"},\\\"operationId\\\":\\\"cre-arithmetic-move-1793982776-operation\\\",\\\"decision\\\":{\\\"action\\\":\\\"move\\\",\\\"code\\\":\\\"POSITIVE_NET_IMPROVEMENT\\\",\\\"reason\\\":\\\"Expected net improvement is positive and meets the approved limits.\\\",\\\"evaluatedAt\\\":\\\"1793982791\\\",\\\"calculation\\\":{\\\"valuationUnit\\\":\\\"SIM_USD\\\",\\\"valuationDecimals\\\":6,\\\"remainingSeconds\\\":\\\"5183985\\\",\\\"yearSeconds\\\":\\\"31536000\\\",\\\"movableUnits\\\":\\\"800000000000000000000\\\",\\\"protectedIdleReserveUnits\\\":\\\"200000000000000000000\\\",\\\"aprDeltaBps\\\":\\\"300\\\",\\\"interestNumerator\\\":\\\"1244156400000000000000000000000000000\\\",\\\"interestDenominator\\\":\\\"315360000000000000000000000000\\\",\\\"additionalInterestMicrounits\\\":\\\"3945194\\\",\\\"costBreakdown\\\":[{\\\"category\\\":\\\"withdrawalFee\\\",\\\"costMicrounits\\\":\\\"0\\\"},{\\\"category\\\":\\\"sourceApprovalGas\\\",\\\"costMicrounits\\\":\\\"0\\\"},{\\\"category\\\":\\\"destinationApprovalGas\\\",\\\"costMicrounits\\\":\\\"0\\\"},{\\\"category\\\":\\\"sourceGas\\\",\\\"costMicrounits\\\":\\\"0\\\"},{\\\"category\\\":\\\"bridgeFee\\\",\\\"costMicrounits\\\":\\\"2000000\\\"},{\\\"category\\\":\\\"destinationGas\\\",\\\"costMicrounits\\\":\\\"0\\\"},{\\\"category\\\":\\\"depositFee\\\",\\\"costMicrounits\\\":\\\"0\\\"}],\\\"upfrontCostMicrounits\\\":\\\"2000000\\\",\\\"exitCostDifferenceMicrounits\\\":\\\"0\\\",\\\"incrementalCostMicrounits\\\":\\\"2000000\\\",\\\"feeLimitChargeMicrounits\\\":\\\"2000000\\\",\\\"netImprovementMicrounits\\\":\\\"1945194\\\",\\\"strategyAccounting\\\":{\\\"initialDepositCostMicrounits\\\":\\\"0\\\",\\\"realizedWithdrawalCostMicrounits\\\":\\\"0\\\",\\\"priorRebalanceCostMicrounits\\\":\\\"0\\\",\\\"estimatedExitIfStayMicrounits\\\":\\\"0\\\",\\\"estimatedExitIfMoveMicrounits\\\":\\\"0\\\"},\\\"estimate\\\":true,\\\"simulated\\\":true,\\\"assumptions\\\":[\\\"APR remains unchanged until the fixed approved deadline.\\\",\\\"Transfer downtime is zero; later execution must record actual time in transit.\\\",\\\"The full movable amount is deposited; all fees are funded separately from unreserved idle balances.\\\",\\\"A year is exactly 365 days. This estimate is not a promise of earnings.\\\"]},\\\"issues\\\":[]}}}\"\n\n2026-11-06T22:03:11Z [SIMULATION] Execution finished signal received\n2026-11-06T22:03:11Z [SIMULATION] Skipping WorkflowEngineV2\n\n╭──────────────────────────────────────────────────────╮\n│ Simulation complete! Ready to deploy your workflow?  │\n│                                                      │\n│ Run cre account access to request deployment access. │\n╰──────────────────────────────────────────────────────╯\n"
+}

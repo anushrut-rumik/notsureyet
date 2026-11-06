@@ -1,0 +1,33 @@
+{
+  "scope": "dedicated-test-only",
+  "owner": null,
+  "userId": "test-user-1",
+  "runId": "test-run-1",
+  "workflowId": null,
+  "policyVersion": "test-policy-v1",
+  "approvedAt": null,
+  "deadline": null,
+  "principalUnits": null,
+  "protectedIdleReserveUnits": null,
+  "maxMovableUnits": null,
+  "poolCapacityUnits": null,
+  "minNetBenefitMicrounits": "1000000",
+  "maxFeeMicrounits": "3000000",
+  "maxObservationAgeSeconds": "1800",
+  "maxObservationSkewSeconds": "900",
+  "cooldownSeconds": "86400",
+  "fictionalPrices": {
+    "unit": "SIM_USD",
+    "bnmMicrounitsPerToken": "1000000",
+    "linkMicrounitsPerToken": "1000000",
+    "ethMicrounitsPerToken": "2000000000"
+  },
+  "controlledSourceRateRay": "40000000000000000000000000",
+  "controlledDestinationRateRay": "70000000000000000000000000",
+  "estimatedSourceGasWei": null,
+  "estimatedDestinationApprovalGasWei": null,
+  "exitIfStayMicrounits": null,
+  "exitIfMoveMicrounits": null,
+  "sourceLinkFundingUnits": null,
+  "destinationLinkFundingUnits": null
+}

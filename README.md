@@ -1,6 +1,13 @@
 # A small agent that gets work done
 
-## Multichain lending decision logic (Part 1)
+## Multichain lending (Parts 1–2)
+
+Part 2 adds hardened test contracts and a read-only CRE workflow.
+`npm run lending:part2:test` runs authorization/encoding/adapter tests and compiles
+the workflow to WASM. Arithmetic move/hold cases also pass in the actual CRE
+simulator. The 11 deployment/funding transactions are confirmed. Finality and
+deployed-contract move/hold acceptance remain pending, including the final
+mock-rate change. See [the Part 2 guide](docs/lending-part2.md).
 
 `npm run lending:examples` runs labelled, offline move/hold scenarios.
 `npm run lending:test` verifies the shared TypeScript rules and application/CRE

@@ -1,0 +1,11 @@
+Attempted command (working directory: cre-lending):
+cre workflow simulate workflow --target staging-settings --non-interactive --trigger-index 0
+
+Initializing...
+
+! You are not logged in
+
+✗ Authentication required: not logged in and no CRE_API_KEY set
+  → Run 'cre login' interactively, or
+  → Set CRE_API_KEY environment variable for non-interactive use
+✗ authentication required: no credentials found: you are not logged in, run cre login and try again

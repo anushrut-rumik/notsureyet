@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Ira · Part 2 test setup</title><link rel="stylesheet" href="./style.css"><script src="./app.js" defer></script></head>
+<body><main>
+<header><h1>Finish the Part 2 test setup</h1><p>Deploy your own pools and strategy wallets, make the initial deposit, then verify the read-only CRE decisions.</p><p id="wallet" class="address"></p></header>
+<section aria-labelledby="review-title"><h2 id="review-title">Review this test plan</h2>
+<dl class="summary"><div><dt>Ethereum Sepolia</dt><dd>Deposit 0.8 BnM · keep 0.2 BnM idle · fund 1 test LINK</dd></div><div><dt>Base Sepolia</dt><dd>Keep 0.2 BnM idle · fund 1 test LINK · leave the pool empty</dd></div><div><dt>Decision limits</dt><dd>Minimum benefit 1 SIM_USD · maximum fee 3 SIM_USD · fixed 60-day deadline</dd></div><div><dt>Fictional valuations</dt><dd>1 BnM = 1 SIM_USD · 1 LINK = 1 SIM_USD · 1 ETH = 2,000 SIM_USD</dd></div><div><dt>Controlled rates</dt><dd>Ethereum mock APR: 4%. Base mock APR: 10,000% for the move test, then 4% for hold.</dd></div></dl>
+<p class="hint">SIM_USD prices and the extreme Base APR are deliberately fictional test inputs. The mock pools never accrue interest. No cross-chain transfer or rebalance is enabled.</p>
+<p id="deadline"></p><p><a href="./api/review" target="_blank" rel="noopener">Inspect the complete public plan and transaction data</a></p>
+<div class="connect"><button id="connect" type="button">Connect MetaMask</button><span id="connection" role="status"></span></div>
+<label class="review-check"><input type="checkbox" id="reviewed"> I reviewed the amounts, reserve, limits and fictional assumptions for this test.</label>
+<button id="approve" type="button" disabled>Sign the reviewed setup plan</button><p id="approval" class="hint">This signature approves the exact public setup plan. It does not send a transaction or grant a token allowance.</p>
+</section>
+<section aria-labelledby="steps-title"><div class="section-title"><h2 id="steps-title">Setup transactions</h2><span id="progress"></span></div>
+<p class="hint">Each action opens a separate MetaMask confirmation. The page saves its transaction hash and verifies the receipt before the next action becomes available.</p>
+<div class="work"><ol id="steps"></ol><section id="current" class="current" aria-labelledby="action-title"><h3 id="action-title">Loading the review…</h3><p id="description"></p><dl id="details"></dl><details><summary>Inspect raw transaction data</summary><pre id="raw"></pre></details><button id="send" type="button" disabled>Review transaction in MetaMask</button><form id="recover" hidden><label for="hash">Transaction hash from MetaMask Activity</label><input id="hash" type="text" autocomplete="off" spellcheck="false" placeholder="0x…" pattern="0x[0-9a-fA-F]{64}" required><button type="submit">Recover this transaction</button></form></section></div>
+<p id="message" role="status" aria-live="polite"></p><p id="receipt"></p>
+</section><footer>Your private key stays in MetaMask. All actions are restricted to Ethereum Sepolia and Base Sepolia. The server reads chain data and records receipts; it has no signer.</footer>
+</main></body></html>

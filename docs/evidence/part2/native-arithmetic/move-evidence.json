@@ -1,0 +1,14 @@
+{
+  "scope": "arithmetic-only",
+  "command": "cre workflow simulate arithmetic-check --target local-simulation --non-interactive --trigger-index 0 --http-payload /Users/bhaskarpandit/Documents/notsureyet/docs/evidence/part2/native-arithmetic/move-input.json",
+  "cwd": "/Users/bhaskarpandit/Documents/notsureyet/cre-lending",
+  "exitCode": 1,
+  "deployedContractsRead": false,
+  "broadcast": false,
+  "expected": "move",
+  "localMatchesCRE": false,
+  "actual": null,
+  "local": null,
+  "error": "Missing complete CRE result logs",
+  "output": "Initializing...\nLoading settings...\n✗ no RPC URLs found for target \"local-simulation\"                                                \n                                                                                                 \nTo fix:                                                                                          \n  • Check that your project.yaml has an 'rpcs' section under the target \"local-simulation\"       \n  • Ensure chain names are valid (run 'cre workflow supported-chains' to see all supported names)\n  • Verify the correct target is selected via --target or CRE_TARGET                             \n"
+}

@@ -1,0 +1,4 @@
+*.env
+secrets.yaml
+.cre_build_tmp.js
+*.wasm
