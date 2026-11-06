@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "chainlink-ace-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-ace-skill/SKILL.md",
+      "computedHash": "5d65d682b793dad596cecfc192ddf0be7e65c79a8c2102d65f7bf76d4ff6a228"
+    },
+    "chainlink-ccip-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-ccip-skill/SKILL.md",
+      "computedHash": "6ea211d23ceb95605f85909ba09d7524a50b9411f3ddbeba5c42a14ea0ffc6cd"
+    },
+    "chainlink-confidential-ai-attester-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-confidential-ai-attester-skill/SKILL.md",
+      "computedHash": "143f799e82a70e45238820d1f52ba5dce317381c538423472d1b4300be77387e"
+    },
+    "chainlink-cre-connect-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-cre-connect-skill/SKILL.md",
+      "computedHash": "4a28f826c5f7139fcb521002b2ff6701f3f9fcc17a4e15bf72a3919810667789"
+    },
+    "chainlink-cre-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-cre-skill/SKILL.md",
+      "computedHash": "d25c24ec01bc059a7cbb9b2505d77f0330ccf6ed7e08ac47821fb7baa3d3eb87"
+    },
+    "chainlink-data-feeds-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-data-feeds-skill/SKILL.md",
+      "computedHash": "c547815bda60f3112b9b4704cf514e1c729e02e8efcd3fcadada074154dee553"
+    },
+    "chainlink-data-streams-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-data-streams-skill/SKILL.md",
+      "computedHash": "386987513806ce1c9c2dd0ac8bce2788841110fcd5abe525c81142a888a06e2c"
+    },
+    "chainlink-nop-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-nop-skill/SKILL.md",
+      "computedHash": "e37a7083ac6b791631f2a71de8ce45709bd42d30376383e53a3821abb4475e72"
+    },
+    "chainlink-vrf-skill": {
+      "source": "smartcontractkit/chainlink-agent-skills",
+      "sourceType": "github",
+      "skillPath": "chainlink-vrf-skill/SKILL.md",
+      "computedHash": "14d9e0615232adc4b24f55cf35df7e61c7dddf47ea47950db4312744e5b087c0"
+    }
+  }
+}

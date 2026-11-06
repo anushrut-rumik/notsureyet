@@ -1,0 +1,160 @@
+# CLI Reference
+
+## Contents
+
+- Non-interactive rules
+- Global flags
+- Authentication and account
+- Registry
+- Project and templates
+- Simulation
+- Workflow lifecycle
+- Secrets
+- Sources
+
+Use for exact CRE commands and flags. [project-scaffolding.md](project-scaffolding.md) owns the `cre init` flag table; [simulation.md](simulation.md) owns simulate behavior; [operations.md](operations.md) owns side-effect approvals.
+
+## Non-interactive rules
+
+- Pass `--target` on every `cre workflow` and `cre secrets` command that accepts it; omission prompts for a target.
+- For `cre init`, pass `--non-interactive --project-name ... --deployment-registry ... --template ...`; a missing registry can still prompt.
+- For simulate automation, pass `--non-interactive --trigger-index`, plus the selected trigger's payload flags.
+- Machine output exists only as `cre templates list --json`, `cre workflow list --output json`, and `cre workflow supported-chains --output json`; do not invent `--json` for other commands.
+
+## Global flags
+
+| Flag | Meaning |
+|---|---|
+| `-h, --help` | help |
+| `-e, --env <path>` | secret environment file (default `.env`) |
+| `-E, --public-env <path>` | shared non-sensitive `.env.public` |
+| `-T, --target <name>` | target from project configuration |
+| `-R, --project-root <path>` | project root |
+| `-v, --verbose` | debug logging |
+| `--non-interactive` | fail rather than prompt; all inputs must be supplied |
+
+## Authentication and account
+
+| Command | Effect / important flags |
+|---|---|
+| `cre login` | opens browser; user completes password/2FA |
+| `cre logout` | ends session |
+| `cre whoami` | email, organization ID, linked keys |
+| `cre account access` | checks/requests Early Access; no command-specific flags |
+| `cre account link-key --target <target>` | links key consumed from `CRE_ETH_PRIVATE_KEY` by the CLI |
+| `cre account list-key` | lists linked keys |
+| `cre account unlink-key --target <target>` | unlinks key and deletes its workflows |
+
+The agent never reads key material. Account creation is browser-only.
+
+`CRE_API_KEY` (set by the user in the environment) replaces `cre login` for every authenticated command except `cre secrets`. API keys are permissioned per command; when a command is denied, report the missing permission from the error and have the user review the key's permissions in the CRE app. Do not guess permission names.
+
+API keys are not supported for `cre secrets` operations, which require an interactive `cre login` session. With only `CRE_API_KEY`, the agent cannot run `cre secrets` commands; tell the user to complete `cre login` themselves (or run the secrets step themselves) instead of retrying.
+
+## Registry
+
+Login is required. `cre registry list` reads the cached tenant context from `~/.cre/context.yaml` (populated by `cre login`) and prints each registry's label, ID, type, and onchain address when present. Use an ID from that output as `--deployment-registry` / `user-workflow.deployment-registry`. Do not invent IDs. The receiver-free local scaffold uses the supported literal `private`; registry-bound init, deploy, broadcast, and lifecycle use an authenticated ID from this command. There is no `--json` flag for this command.
+
+```bash
+cre registry list
+```
+
+| Registry | Definition | Deploy/lifecycle needs |
+|---|---|---|
+| onchain | Registered by Ethereum Mainnet transaction | login, linked funded wallet, RPC URL in `project.yaml`, gas |
+| `private` / off-chain | Chainlink-hosted registry; owner is the organization address | login or `CRE_API_KEY`, no wallet, no RPC URL, no gas |
+
+`deployment-registry` is per target, and every lifecycle command routes to the registry of the `--target` in use. Expand with [registries.md](registries.md) for auth models, quotas, and registry-specific secrets.
+
+## Project and templates
+
+```bash
+cre init --non-interactive --project-name my-project \
+  --deployment-registry <registry-id> --workflow-name my-workflow \
+  --template hello-world-ts
+```
+
+All `cre init` flags, required combinations, templates, dependency steps, and registry lookup are canonical in [project-scaffolding.md](project-scaffolding.md).
+
+Generate Go bindings from ABIs/artifacts with:
+
+```bash
+cre generate-bindings evm
+```
+
+Current project-setup references may also expose the explicit form `cre generate-bindings --abi-dir <path> --pkg <package> --output <path>`; check `cre generate-bindings --help` for the installed CLI before choosing a syntax.
+
+| Command | Flags |
+|---|---|
+| `cre templates list` | `--json`, `--refresh` |
+| `cre templates add <repository-source>` | add source |
+| `cre templates remove <repository-source>` | remove source |
+| `cre update` | update CLI |
+| `cre version` | print version |
+
+## Simulation
+
+[simulation.md](simulation.md) owns the command shape and behavior; this table is a flag index only.
+
+| Flag | Meaning |
+|---|---|
+| `--target` | required target; omission prompts |
+| `--non-interactive` | no prompts |
+| `--trigger-index` | 0-based handler; required with non-interactive mode |
+| `--http-payload` | HTTP body as JSON or file path |
+| `--evm-tx-hash` | transaction containing the EVM log |
+| `--evm-event-index` | 0-based log index |
+| `--evm-receipt-timeout` | receipt wait, not overall simulation timeout; version-dependent |
+| `--broadcast` | execute a real testnet write through `MockKeystoneForwarder` |
+| `--limits` | `default`, a limits file, or `none` |
+| `--skip-type-checks` | skip TypeScript typecheck |
+
+There is no generic simulation `--timeout`. Read [simulation.md](simulation.md) before running this command.
+
+`cre workflow limits export` prints the default limit JSON for the installed CLI. Pass that file, `default`, or `none` to `--limits`. Log-trigger caps from that JSON are in [triggers.md](triggers.md).
+
+## Workflow lifecycle
+
+Every command below includes `--target`:
+
+```bash
+cre workflow deploy <dir> --target <target>
+cre workflow activate <dir> --target <target>
+cre workflow pause <dir> --target <target>
+cre workflow delete <dir> --target <target>
+cre workflow get <dir> --target <target>
+cre workflow list --target <target> --output json
+cre workflow list --target <target> --registry private
+cre workflow supported-chains --target <target> --output json
+```
+
+- Deploy prerequisites follow the target's `user-workflow.deployment-registry`: the onchain registry needs login, a linked funded wallet, an RPC URL, Early Access, and uploaded secrets when used; the private registry needs login or `CRE_API_KEY` and no wallet, RPC URL, or gas.
+- On the onchain registry deploy registers a paused workflow and activate starts it; a private-registry deploy is active immediately.
+- There is no `workflow update` or `workflow show` subcommand (v1.39.0). Update by redeploying the same workflow name to the same target; status is kept and the workflow ID changes.
+- Delete is permanent and removes **all versions matching the workflow name and owner**. The private registry prompts the operator to type the workflow name; `--yes` skips the prompt. `--unsigned` (raw transaction for multisig) applies only to the onchain registry.
+- `workflow list` also accepts `--include-deleted` and `--registry <id>`.
+- `workflow get` prints deployment health and the latest execution, resolving against the target's configured `deployment-registry`; `--all-registries` resolves across all of them, and it accepts `--output json`.
+- `supported-chains` returns tenant chains and mock forwarders.
+
+Refuse mainnet writes and apply [operations.md](operations.md)'s testnet preflight and second confirmations.
+
+## Secrets
+
+All secret commands require a target. The CLI consumes values declared by `secrets.yaml` from its environment without the agent reading them.
+
+```bash
+cre secrets create <secrets-file> --target <target>
+cre secrets update <secrets-file> --target <target>
+cre secrets delete <secrets-file> --target <target>
+cre secrets list --target <target>
+```
+
+Each takes a secrets YAML file path, not a workflow directory. Create uploads; update replaces; delete removes; list shows namespaces. `--secrets-auth` defaults to `onchain` (wallet key); private-registry targets pass `--secrets-auth=browser`. Follow secret custody and approvals in [operations.md](operations.md).
+
+## Sources
+
+- https://docs.chain.link/cre/reference/cli.md
+- https://docs.chain.link/cre/reference/cli/registry.md
+- https://docs.chain.link/cre/reference/cli/workflow.md
+- https://docs.chain.link/cre/reference/cli/secrets.md
+- https://docs.chain.link/cre/guides/operations/deploying-to-private-registry-ts.md
