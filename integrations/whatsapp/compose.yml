@@ -25,9 +25,7 @@ services:
       retries: 30
     restart: unless-stopped
   sidecar:
-    build:
-      context: ../../rc-harness copy/ira/wa
-    image: notsureyet-whatsapp:local
+    image: ${AGENT_WHATSAPP_IMAGE:-notsureyet-whatsapp:local}
     env_file: ../../.local/whatsapp.env
     environment:
       # Await the actual read operation before exposing a reaction. The adapter

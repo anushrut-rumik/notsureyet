@@ -1,4 +1,4 @@
-# The small core and its Ira reference
+# Agent architecture
 
 ## The core idea
 
@@ -7,30 +7,9 @@ the user's actual instruction, an observable completion condition, working notes
 and a journal. A background worker keeps running that task until it finishes, waits,
 needs the user's input, or is cancelled. Task state survives process restarts.
 
-The implementation is independent Python code. It carries over Ira's task-ownership
-approach, rather than importing the full production service and its infrastructure.
-It is intentionally smaller than full rc-harness and does not claim identical model
-decisions or every production integration.
-
-## What was studied in rc-harness
-
-| Reference source under `rc-harness copy/ira/src/ira/` | Responsibility carried into this agent |
-|---|---|
-| `engine/session.py` | Repeated model → tool → result steps, with terminal task tools |
-| `engine/chat.py`, `engine/prompts.py` | Conversation context, task handoff, and user-facing replies |
-| `engine/goal.py`, `workflows/goal.py` | Saved task state, working sessions, timers, and resumption |
-| `engine/tools.py` | A tool registry with argument schemas and effect metadata |
-| `engine/session.py` effect handling | Record intended actions before execution and keep uncertain outcomes distinct |
-| `tools/goal_work.py` | Completion evidence, progress, waits, and questions |
-| `memory/context.py`, `memory/digest.py`, `db/memories.py` | Persistent user memory and its source |
-| `engine/compact.py` | Trim context without splitting tool-call/result exchanges |
-| `engine/providers.py`, `profiles.py` | Separate agent logic from inference provider selection |
-
-The reference architecture document is a draft; the actual source was used to check
-how these responsibilities work. Its current session loop has no universal fixed
-step cap. This smaller agent intentionally yields after a configurable number of
-steps, saves everything, and queues the next run. That keeps the local worker
-responsive while preserving unfinished work.
+The implementation is independent Python code. Each task run yields after a
+configurable number of steps, saves its progress, and queues the next run. That
+keeps the local worker responsive while preserving unfinished work.
 
 ## Components and data flow
 

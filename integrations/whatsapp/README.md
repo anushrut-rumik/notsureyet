@@ -1,15 +1,20 @@
 # Local Ira WhatsApp line
 
-This compose project runs the existing Ira `ira/wa` implementation from the local
-reference checkout. It has its own PostgreSQL key store, Redis and event stream.
-It does not connect to the production Ira database, Redis or phone sessions.
+This compose project runs a prebuilt WhatsApp sidecar image with its own
+PostgreSQL key store, Redis and event stream. It does not connect to the production
+Ira database, Redis or phone sessions.
+
+The default image is `notsureyet-whatsapp:local`, which must already exist locally.
+To use another compatible image, set `AGENT_WHATSAPP_IMAGE` in the root `.env` or
+your shell. The image must support the Redis event and HTTP contracts used by
+`agent/whatsapp.py`. Sidecar source code is not bundled with this repository.
 
 Private settings are in `.local/whatsapp.env` (sidecar and database) and `.env`
 (agent). Both are ignored by Git. The phone number in `AGENT_WHATSAPP_PHONE` is
 the agent's number. `AGENT_WHATSAPP_ALLOWED_CHATS` is the separate test sender.
 
 ```sh
-docker compose -f integrations/whatsapp/compose.yml up -d --build
+docker compose -f integrations/whatsapp/compose.yml up -d
 uv run agent whatsapp-link
 uv run agent whatsapp-status
 uv run agent whatsapp
@@ -28,9 +33,8 @@ Arkiv before the worker takes new work.
 The Docker volumes hold the linked-device keys and Redis events. Preserve them
 when stopping the services. Do not use `down --volumes` for a normal restart.
 
-The source context is `rc-harness copy/ira/wa`; this local setup requires that
-existing checkout. Building it does not copy production credentials or deploy to
-production. All published ports bind to loopback: sidecar 58083, Redis 56389.
+All published ports bind to loopback: sidecar 58083, Redis 56389. Starting this
+project does not deploy anything to production.
 
 ## Read receipts, typing and reactions
 

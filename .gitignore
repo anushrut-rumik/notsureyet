@@ -9,7 +9,6 @@ __pycache__/
 .local/
 workspace/
 .DS_Store
-rc-harness copy/
 evals/reports/
 node_modules/
 playwright-report/

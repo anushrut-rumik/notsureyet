@@ -74,8 +74,8 @@ This is an independent, extensible agent in the root of `notsureyet`. It keeps t
 important ideas from Ira: own a task, use tools, save progress, remember the user,
 wait when necessary, continue after a restart, and verify results before claiming success.
 
-The runnable project is the small `agent/` package. `rc-harness copy/` is reference
-material and is never imported. No original credentials or production data are used.
+The runnable project is the small `agent/` package. No original credentials or
+production data are used.
 
 ## Run
 
@@ -247,5 +247,5 @@ and error handling. Live checks require configured credentials and model access;
 see [OpenAI setup and validation](docs/OPENAI.md). Different models can make
 different decisions, so integration checks do not establish reliability for every task.
 
-See [the source map and design notes](docs/ARCHITECTURE.md) for what was learned from
-rc-harness and how the smaller implementation carries those responsibilities.
+See [the architecture and design notes](docs/ARCHITECTURE.md) for the components,
+data flow and responsibilities of this implementation.
