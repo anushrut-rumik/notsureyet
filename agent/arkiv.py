@@ -16,6 +16,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 from agent.store import Store
+from agent.task_state import TERMINAL, public_state
 from agent.vault import Vault
 
 
@@ -249,7 +250,10 @@ class Bridge:
         if command in {"read", "reconcile"}:
             scopes = self.scopes()
             if user is not None:
-                self.scope(user)
+                # A clean observer needs the decryption key and trusted scope descriptor,
+                # not a wallet signing key. Writes still require active()/scope_for_task().
+                if not any(s["user_id"] == user for s in scopes):
+                    self.scope(user)
                 scopes = [s for s in self.scopes() if s["user_id"] in {None, user}]
             rows = []
             for scope in scopes:
@@ -320,15 +324,39 @@ class ArkivStore(Store):
         latest = {}
         for row in rows:
             task_id, revision = row["task"], int(row["revision"])
-            if task_id not in latest or revision > int(latest[task_id]["revision"]):
+            prior = latest.get(task_id)
+            if prior and revision == int(prior["revision"]) and row["encrypted"] != prior["encrypted"]:
+                raise ArkivError("Conflicting task revisions; recovery stopped")
+            # The SDK resolves v2 heads. Legacy/fake bridges still need terminal-aware resolution.
+            if prior:
+                previous = self.vault.open(
+                    prior["encrypted"], f"{prior.get('instance', self.bridge.instance)}:{task_id}:{prior['revision']}"
+                )
+                candidate = self.vault.open(
+                    row["encrypted"], f"{row.get('instance', self.bridge.instance)}:{task_id}:{row['revision']}"
+                )
+                if previous["task"]["status"] in TERMINAL and candidate["task"]["status"] not in TERMINAL:
+                    continue
+                if candidate["task"]["status"] in TERMINAL and previous["task"]["status"] not in TERMINAL:
+                    latest[task_id] = row
+                    continue
+            if prior is None or revision > int(prior["revision"]):
                 latest[task_id] = row
         decoded = []
         for row in latest.values():
             instance = row.get("instance", self.bridge.instance)
             data = self.vault.open(row["encrypted"], f"{instance}:{row['task']}:{row['revision']}")
             expected_fields = {column[1] for column in self.db.execute("PRAGMA table_info(tasks)")}
-            if data.get("version") != 1 or data["task"]["id"] != row["task"] or set(data["task"]) != expected_fields:
+            if (
+                data.get("version") not in {1, 2}
+                or data["task"]["id"] != row["task"]
+                or set(data["task"]) != expected_fields
+            ):
                 raise ArkivError("Invalid task checkpoint; recovery stopped")
+            if data.get("version") == 2 and (
+                data.get("public_state") != public_state(data) or row.get("public_state") != data["public_state"]
+            ):
+                raise ArkivError("Public task state differs from encrypted checkpoint")
             if row.get("user_id") is not None and data["task"]["user_id"] != row["user_id"]:
                 raise ArkivError("Checkpoint belongs to a different chat")
             if isinstance(self.bridge, Bridge):
@@ -341,17 +369,30 @@ class ArkivStore(Store):
             decoded.append(data)
         return decoded
 
-    def tasks(self, user_id):
+    def tasks(self, user_id, *, status=None, protocol=None):
         # Every user-visible list performs a real Arkiv query. Do not return the local cache on failure.
         return sorted(
             [
                 {**item["task"], "arkiv": item["arkiv"]}
                 for item in self._rows(user_id=user_id)
                 if item["task"]["user_id"] == user_id
+                and (status is None or item["task"]["status"] == status)
+                and (protocol is None or public_state(item)["protocol"] == protocol)
             ],
             key=lambda task: task["created_at"],
             reverse=True,
         )
+
+    def progress(self, user_id, task_id):
+        for item in self._rows(task=task_id, user_id=user_id):
+            if item["task"]["user_id"] == user_id:
+                return {
+                    "task": item["task"],
+                    "public_state": public_state(item),
+                    "events": item["events"],
+                    "arkiv": item["arkiv"],
+                }
+        raise ValueError("No stored task for this user")
 
     def recover(self):
         self.available = False
@@ -422,6 +463,14 @@ class ArkivStore(Store):
                 if not item["arkiv"].get("pending"):
                     self.digests[task["id"]] = hashlib.sha256(json.dumps(original, sort_keys=True).encode()).hexdigest()
         super().recover()
+        # A restored submitted intent is tracked by hash, never handed back to a payment planner.
+        with self.db:
+            self.db.execute("""UPDATE tasks SET status='needs_input',wake_at=NULL
+                WHERE id IN (SELECT task_id FROM transfers
+                    WHERE json_extract(data,'$.status') IN
+                    ('awaiting_approval','awaiting_signature','submitting','submitted',
+                     'unknown','in_transit','allowance_confirmed'))
+                AND status IN ('queued','running','waiting')""")
         self.available = True
         # A paused payment has a separate durable admission journal. Restoring its transient
         # execution status must not create a new storage approval before the payment review.
@@ -463,8 +512,8 @@ class ArkivStore(Store):
         effects = [
             self.effect(row[0]) for row in self.db.execute("SELECT key FROM effects WHERE task_id=?", (task_id,))
         ]
-        return {
-            "version": 1,
+        snapshot = {
+            "version": 2,
             "task": task,
             "events": self.events(task["user_id"], task_id=task_id, limit=100000),
             "messages": self.messages(f"task:{task_id}"),
@@ -473,6 +522,8 @@ class ArkivStore(Store):
                 json.loads(row[0]) for row in self.db.execute("SELECT data FROM transfers WHERE task_id=?", (task_id,))
             ],
         }
+        snapshot["public_state"] = public_state(snapshot)
+        return snapshot
 
     @contextmanager
     def stage_checkpoint(self, task_id):
@@ -512,7 +563,13 @@ class ArkivStore(Store):
         encrypted = self.vault.seal(snapshot, f"{instance}:{task_id}:{revision}")
         try:
             receipt = self.bridge.call(
-                "write", user_id=snapshot["task"]["user_id"], task=task_id, revision=str(revision), encrypted=encrypted
+                "write",
+                user_id=snapshot["task"]["user_id"],
+                task=task_id,
+                revision=str(revision),
+                encrypted=encrypted,
+                public_state=snapshot["public_state"],
+                previous_revision=str(self.revisions.get(task_id, 0)),
             )
         except ArkivSignatureRequired:
             raise

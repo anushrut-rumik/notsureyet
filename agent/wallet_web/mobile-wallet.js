@@ -89,11 +89,13 @@ async function init(){
   if(state.completed){$('message').textContent='This wallet link is already connected. Return to WhatsApp.';$('action').hidden=true;}
  }else{
   const storage=state.kind==='arkiv';
-  $('title').textContent=storage?'Save task to Arkiv':'Review payment';$('intro').textContent=storage?'Approve an encrypted task checkpoint on Arkiv Rabdi. This uses tGLM for the network fee. Records last 30 days.':'You approved this payment in chat. Confirm the same details in MetaMask to send it.';
+  const deployment=state.payment.kind==='ccip_deployment';
+  $('title').textContent=storage?'Save task to Arkiv':deployment?'Deploy CCIP sender':'Review payment';$('intro').textContent=storage?'Approve an encrypted task checkpoint on Arkiv Rabdi. This uses tGLM for the network fee. Records last 30 days.':deployment?'Create the CCIPSender contract on Ethereum Sepolia. Transaction value is 0 ETH; you pay deployment gas. This does not transfer tokens.':'You approved this payment in chat. Confirm the same details in MetaMask to send it.';
   const p=state.payment;const dl=document.createElement('dl');
   for(const [label,value] of [['Network',p.chain_id===7794095?'Arkiv Rabdi':'Ethereum Sepolia'],['Amount',p.amount+' '+p.asset],['From',p.sender],[storage?'Arkiv storage operation':'Recipient',p.recipient],['Maximum fee (wei)',p.max_fee_wei],['Status',p.status]])dl.append(...detail(label,value));
   if(p.kind==='ccip'){for(const [label,value] of [['Step',p.phase==='allowance'?'Approve exact token allowance':'Send cross-chain transfer'],['Destination',p.destination],['Sender contract / allowance spender',p.sender_contract],['CCIP fee quote',p.ccip_fee_eth+' ETH'],['Maximum CCIP fee',p.ccip_fee_cap_eth+' ETH (unused portion refunded)']])dl.append(...detail(label,value));}
   $('details').append(dl);$('action').textContent='Review and send in MetaMask';$('action').onclick=()=>run(sign);
+  if(deployment)$('action').textContent='Review contract deployment in MetaMask';
   if(state.claimed||p.status!==(storage?'external_prepared':'awaiting_signature')){$('action').hidden=true;$('recover').hidden=storage?p.status==='verified':!!p.tx_hash;$('message').textContent=p.tx_hash?'Transaction reference: '+p.tx_hash:'A signing request already started. Check MetaMask activity; do not send again.';if(p.tx_hash)$('hash').value=p.tx_hash;}
   const saved=localStorage.getItem('ira-tx-'+token);if(saved){$('hash').value=saved;$('recover').hidden=false;}
  }

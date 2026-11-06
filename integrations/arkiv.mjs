@@ -148,6 +148,15 @@ export async function execute(input, rpcOverride) {
     operation, encrypted: Buffer.from(input.encrypted) };
   const options = { expiration: ExpirationTime.fromDays(30), flags: { readonly: true },
     salt: BigInt(operation) & ((1n << 128n) - 1n) };
+  if (input.public_state) {
+    const previous = (await current(input.task)).filter(row => row.task === input.task)
+      .sort((a, b) => BigInt(a.revision) > BigInt(b.revision) ? -1 : 1)[0];
+    if (previous && (BigInt(input.revision) <= BigInt(previous.revision)
+      || (['completed', 'cancelled'].includes(previous.public_state?.status)
+        && input.public_state.status !== previous.public_state.status))) throw Error('Stale or reopened task');
+    if (input.previous_revision !== undefined
+      && BigInt(input.previous_revision) !== BigInt(previous?.revision ?? 0)) throw Error('Task revision changed');
+  }
   const plan = input.public_state ? await prepareBatch(reader, input, operation) : null;
   const mutate = (wallet, params) => plan ? wallet.executeBatch(plan.batch, params)
     : wallet.createEntity(Tasks, values, options, params);

@@ -149,6 +149,33 @@ failed destination execution, finality checks, and task-completion evidence.
 
 ## Deploy to Ethereum Sepolia
 
+### Connected MetaMask (recommended)
+
+Set `AGENT_CCIP_MODE=testnet`, build with `npm run ccip:build`, and restart the worker.
+Ask in WhatsApp: “Prepare the real CCIP sender deployment on Ethereum Sepolia using
+my connected MetaMask wallet.” The `prepare_ccip_sender_deployment` tool prepares
+contract creation without signing, using the compiled sender and the verified Router,
+token and Base selector. No new deployment key, keystore or agent-wallet funding is needed.
+
+Review the deployment address and maximum gas fee, reply with its exact `approve CODE`,
+and confirm contract creation on **Ethereum Sepolia** in the existing MetaMask link.
+The transaction value is zero: the cost is deployment gas, not a token payment.
+After the canonical creation receipt and immutable route values are checked, the
+agent writes `AGENT_CCIP_SENDER_ADDRESS` to the existing `.env` and activates it
+in the running worker. It preserves the existing environment settings. Retries track
+the same deployment intent and transaction; a lost response never grants another send.
+Unsigned expired reviews can be refreshed on the same intent with fresh approval.
+
+Then request the desired CCIP-BnM transfer. An allowance approval (when needed) and
+the actual cross-chain send each have their own review, chat approval and MetaMask
+confirmation on Ethereum Sepolia. The agent saves the source hash and message ID
+and only reports delivery after verifying destination execution on Base Sepolia.
+
+`AGENT_CCIP_MAX_DEPLOYMENT_FEE_ETH` caps deployment gas cost; the default is `0.005` ETH.
+Arkiv task persistence still uses the selected storage wallet and its normal fee policy.
+
+### Foundry keystore (alternative)
+
 Make sure `.env` contains both RPC endpoints. Foundry loads `.env` itself; never
 replace an existing file just to deploy. Check the route before deployment:
 

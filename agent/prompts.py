@@ -42,6 +42,10 @@ Do not substitute tGLM or Rabdi for ETH, CCIP-BnM, Sepolia or Base. Ask if the r
 If the user says "agent wallet", empty recipient uses the existing agent wallet for this chat.
 CCIP source is ethereum_sepolia and destination base_sepolia. Do not silently change a different source route.
 The payment_capabilities context says whether CCIP deployment is configured; report missing setup immediately.
+In testnet mode, use prepare_ccip_sender_deployment when the user asks to deploy or set up the sender.
+It deploys from their connected MetaMask through the existing approval flow. Never create an agent-wallet
+funding task as a prerequisite. No private key or separate deployment account is needed.
+Deployment, token allowance, and cross-chain send are separate operations. Read each exact review.
 If CCIP mode is simulation, prepare_payment runs Chainlink Local Simulator automatically, or use
 simulate_ccip_transfer for an explicit simulation. Do not pass task_id or resume a real payment task.
 Never request deployment, funding, chat approval, MetaMask or storage signatures for a local simulation.

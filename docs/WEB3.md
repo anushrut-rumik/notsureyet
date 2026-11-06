@@ -143,10 +143,13 @@ Arkiv checkpoints restore task instructions, notes, waits, task messages, eviden
 effect receipts and payment references into SQLite. Interrupted effects become
 unknown. A submitted payment resumes receipt checks, never another send.
 
-Checkpoints are encrypted immutable entities. Queries pin the configured creator
-and current owner, validate readonly creation, and filter the named schema plus
-instance. The newest revision per task is selected. Old or foreign publishers do
-not become trusted just by copying an application tag.
+Each task has a queryable v2 current record and encrypted readonly checkpoints.
+Native batches create/update both together. Queries pin creator, owner and scope,
+verify active current records against immutable history, and check public metadata
+against the authenticated encrypted copy. A retained terminal checkpoint wins over
+old/reopened mutable state. Missing/mismatched active state stops recovery.
+V2 supersedes v1; status filters run after resolution. Foreign publishers do not
+become trusted by copying the application tag.
 
 `/recover` reconciles an admitted Arkiv write using its saved hash, then reloads
 checkpoints. It refuses recovery while task jobs are active. A failed write stops
@@ -174,10 +177,12 @@ Deleting SQLite alone can be recovered without losing signing custody. Losing th
 vault key prevents decryption; losing the wallet-key files loses future signing
 access. The application does not invent a replacement wallet on recovery.
 
-Each checkpoint lasts 30 days. While running and funded, the worker prepares a
+Active records last 30 days. While running and funded, the worker prepares a
 fresh checkpoint for unfinished work at least weekly. Agent-created wallets sign
 it automatically; connected MetaMask wallets require approval before it is published. Completed/cancelled task
-history expires 30 days after its last write. If the app remains offline beyond
+history expires approximately 180 days after its last write. Terminal records
+outlive earlier active versions, preventing normal expiry from reviving old work.
+They are not refreshed indefinitely. If the app remains offline beyond
 retention, the key alone cannot restore expired records. Expiration does not cancel
 a submitted payment. A Rabdi reset can erase testnet data; no automatic reseeding
 or resend is attempted.
@@ -218,10 +223,10 @@ and run the independent reader. Preserve all private recovery files when removin
 a test cache. Do not remove production data to demonstrate recovery.
 
 Automated fixtures exercise the actual signing/SDK code and simulated provider
-responses. Live checks so far establish public Rabdi/Sepolia reads and Mumbai MCP
-connectivity. They do **not** establish an on-chain checkpoint write, live transfer,
-WhatsApp delivery or handset experience. Those require configured/funded wallets
-and the dedicated WhatsApp line.
+responses. Live checks establish v1/v2 Rabdi writes, atomic current-record updates
+and clean-runtime recovery of an existing simulation result. They do not establish
+a public cross-chain payment or handset delivery. See the
+[dated evidence and reproduction](../arkiv/demo.md).
 
 
 ## MetaMask Mobile connection and signing

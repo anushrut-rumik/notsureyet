@@ -142,7 +142,8 @@ class Engine:
                 )
                 continue
             payment_tools = {
-                "prepare_payment", "refresh_payment_review", "simulate_ccip_transfer", "ccip_simulation_status"
+                "prepare_payment", "refresh_payment_review", "simulate_ccip_transfer", "ccip_simulation_status",
+                "prepare_ccip_sender_deployment",
             }
             payment_turn = ctx.mode == "chat" and any(
                 call["function"]["name"] in payment_tools for call in answer.calls

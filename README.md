@@ -1,5 +1,75 @@
 # A small agent that gets work done
 
+## Arkiv integration: evidence and judging
+
+Ira uses **Rabdi (chain 7794095)** through **@arkiv-network/sdk 1.0.1**. Task lists,
+progress checks and restart recovery read Arkiv. The integration is a required
+task-state dependency, rather than a write-only activity log.
+
+Actual entity writers observed on 2026-11-06:
+
+| Wallet | Records |
+| --- | --- |
+| `0x29a73a629FFd5323dDcA4A474210d38d2722D41d` | Agent storage wallet; v1 storage proof and v2 current-state/checkpoint demonstration |
+| `0x66051Eef2e7DD1b410C6E68EeDF8ABBddB783Ee1` | Connected MetaMask wallet; v1 checkpoints for the original Sepolia payment request |
+
+One independent query judges can run from this public repo, without our API or a
+signing/decryption key:
+
+```sh
+npm ci
+node integrations/read-tasks.mjs \
+  0x29a73a629FFd5323dDcA4A474210d38d2722D41d \
+  8ad85568f8a12be483ef170103a4bdf71d4a187113d74524b183d37bf7fb668b
+```
+
+Expected: one resolved v2 task, status `completed`, capability `simulation`, protocol
+`chainlink_local`, and its saved simulation reference. The anonymous endpoint is
+limited; configure your own `AGENT_ARKIV_ACCESS_KEY` in ignored `.env` and add
+`--env-file=.env` to Node if needed. The command reads real Arkiv data and prints
+public state. Private task contents require the separate encryption key.
+
+Live v2 transactions:
+[create current record + checkpoint](https://rabdi.explorer.arkiv.network/tx/0xa329e795b717259859ed93c6625e1e215ab37e4158d6b0709c910df0c49d0764),
+[atomic update + new checkpoint](https://rabdi.explorer.arkiv.network/tx/0x1cbcd7ec615b2c6c77badb17063c3c931fa9f311d756bfd2e454c1cceb3fa3b4).
+The same current-record key is retained. A new Ira runtime with an empty database
+recovered this existing local simulation result from Arkiv using only authorized
+encryption-key/scope access; no wallet signing files, payment journals, inference
+calls, payment submissions or simulation reruns were used.
+The real pending CCIP request was also recovered into a fresh Ira instance with
+no signing keys or payment journals; its observed state was awaiting the user's
+token-allowance signature. [Live pending-intent evidence](arkiv/evidence/live-pending-intent-recovery.json).
+
+**Evidence boundary:** the latest saved cross-chain result was a local simulation
+of 0.0001 CCIP-BnM; its displayed 0.001 ETH was the simulated fee. This is not proof
+of a public Sepolia-to-Base ETH transfer. A separate controlled-RPC regression
+recovers an already-submitted CCIP intent, verifies destination delivery and finishes
+through the existing evidence tools with zero payments after restart.
+[Demo, reports and reproduction](arkiv/demo.md).
+
+Required judging files for Build on Arkiv:
+[schema](arkiv/schema.md), [feedback](arkiv/friction.md), [reach](arkiv/reach.md),
+[why Arkiv](arkiv/why-arkiv.md), [how it is used](arkiv/how-you-use-arkiv.md).
+Criteria source: [ETHGlobal Mumbai Arkiv prizes](https://ethglobal.com/events/mumbai/prizes/arkiv).
+Track enrollment/eligibility is not verified by the implementation.
+
+### Existing foundation, new work, license and AI use
+
+The existing Ira-style foundation includes chat, tools, background tasks,
+completion evidence, waits, wallets and payment approval. This contribution adds
+queryable current task state, atomically paired encrypted checkpoints, one lifecycle
+across those capabilities, protocol references, terminal-safe resolution and clean
+recovery. We do not claim the underlying Ira product was created at this event;
+the Continuity track requires the team's actual registration and disclosure.
+
+Repository: [anushrut-rumik/notsureyet](https://github.com/anushrut-rumik/notsureyet).
+Project code is under the [MIT License](LICENSE); dependencies retain their licenses.
+OpenAI Codex assisted with implementation, tests, debugging and documentation.
+The Arkiv skill/plugin and official SDK/docs informed schema and write-safety work.
+The running agent also uses configured OpenAI models for inference. AI-generated
+claims were checked against source, regression tests and the explicitly identified
+live receipts/readbacks; simulations are labelled separately.
+
 This is an independent, extensible agent in the root of `notsureyet`. It keeps the
 important ideas from Ira: own a task, use tools, save progress, remember the user,
 wait when necessary, continue after a restart, and verify results before claiming success.
@@ -82,8 +152,8 @@ See [CCIP setup, deployment, funding and recovery](docs/CCIP.md) for exact comma
 
 The task list queries Arkiv directly. Startup reconstructs task progress, evidence
 and payment hashes from encrypted immutable checkpoints before execution. SQLite
-loss does not cause a submitted payment to be sent again. Checkpoints have 30-day
-retention; the running worker refreshes unfinished tasks weekly. MetaMask wallets
+loss does not cause a submitted payment to be sent again. Active records have 30-day
+retention and terminal records have 180-day retention; the worker refreshes unfinished tasks weekly. MetaMask wallets
 require approval for each refresh.
 
 Arkiv selects the storage wallet dynamically for each chat. `/arkiv wallet agent`

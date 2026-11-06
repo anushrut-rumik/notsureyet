@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/arkiv-bridge.test.mjs tests/mobile-wallet.test.mjs",
+    "test": "node --test tests/arkiv-bridge.test.mjs tests/arkiv-current.test.mjs tests/mobile-wallet.test.mjs",
     "arkiv:read": "node integrations/read-tasks.mjs",
     "ccip:deps": "node scripts/install-ccip-deps.mjs",
     "ccip:test": "node scripts/foundry.mjs forge test --match-path contracts/test/CCIPSender.t.sol -vv",

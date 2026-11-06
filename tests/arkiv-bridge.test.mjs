@@ -30,7 +30,8 @@ test('real SDK query renders indexed instance plus protected creator and owner f
   let query;
   const rpc={request:async({method,params})=>{
     if(method==='eth_chainId')return '0x76edaf';
-    if(method==='arkiv_query'){query=JSON.stringify(params);return {blockNumber:'0x1',data:[row()]};}
+    if(method==='arkiv_query'){query=JSON.stringify(params);return {blockNumber:'0x1',
+      data:query.includes('ira_task_checkpoint_v1')?[row()]:[]};}
     throw Error(method);
   }};
   const result=await execute({command:'read',writer,instance,access_key:''},rpc);
@@ -42,8 +43,9 @@ test('real SDK query renders indexed instance plus protected creator and owner f
   assert.match(query,/instance/);
 });
 test('wrong network and mutable copied records are rejected',async()=>{
-  const rpc={request:async({method})=>{
+  const rpc={request:async({method,params})=>{
     if(method==='eth_chainId')return '0x76edaf';
+    if(!JSON.stringify(params).includes('ira_task_checkpoint_v1'))return {blockNumber:'0x1',data:[]};
     const entity=row();entity.creationFlags.readonly=false;entity.creationFlags.raw=0;
     return {blockNumber:'0x1',data:[entity]};
   }};

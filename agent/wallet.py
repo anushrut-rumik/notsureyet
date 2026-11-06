@@ -217,7 +217,32 @@ class Wallets:
         saved = self.vault.open(envelope["encrypted"], f"payment:{transfer['id']}")
         if any(saved.get(k) != transfer.get(k) for k in ("id", "user_id", "task_id", "sender")):
             raise ValueError("Payment journal does not match its task and wallet")
-        return saved
+        return self.resolve_transfer(transfer, saved)
+
+    @staticmethod
+    def resolve_transfer(current, journal):
+        """A local admission journal can fill a checkpoint gap, never roll back verified progress."""
+        for field in ("id", "user_id", "task_id", "sender", "intent_id"):
+            if current.get(field) != journal.get(field):
+                raise ValueError("Payment journal identity conflicts with Arkiv")
+        for field in ("source_tx_hash", "message_id", "destination_tx_hash"):
+            if current.get(field) and journal.get(field) and current[field] != journal[field]:
+                raise ValueError("Conflicting protocol references; stop and reconcile")
+        if current["status"] in {"confirmed", "delivered", "reverted", "rejected"}:
+            return current
+        if journal["status"] in {"confirmed", "delivered", "reverted", "rejected"}:
+            return journal
+        if {current.get("phase"), journal.get("phase")} == {"allowance", "send"}:
+            return current if current["phase"] == "send" else journal
+        if current.get("tx_hash") and journal.get("tx_hash") and current["tx_hash"] != journal["tx_hash"]:
+            raise ValueError("Conflicting payment hashes; stop and reconcile")
+        # Never discard a known payment hash or one-shot signing admission for an older snapshot.
+        for field in ("source_tx_hash", "message_id", "tx_hash", "signing_requested_at"):
+            if current.get(field) and not journal.get(field):
+                return current
+            if journal.get(field) and not current.get(field):
+                return journal
+        return max((current, journal), key=lambda p: int(p.get("recorded_at_ns", 0)))
 
     def restore(self):
         for path in self.config.data_dir.glob("payment-*.json"):
@@ -228,7 +253,9 @@ class Wallets:
             transfer = self.vault.open(envelope["encrypted"], f"payment:{transfer_id}")
             if transfer["id"] != transfer_id:
                 raise ValueError("Payment journal identity mismatch")
-            task = self.store.db.execute("SELECT user_id FROM tasks WHERE id=?", (transfer["task_id"],)).fetchone()
+            task = self.store.db.execute(
+                "SELECT user_id,status FROM tasks WHERE id=?", (transfer["task_id"],)
+            ).fetchone()
             if (
                 not task
                 and transfer["status"] == "awaiting_approval"
@@ -245,8 +272,15 @@ class Wallets:
                         "INSERT INTO tasks(" + ",".join(draft) + ") VALUES(" + ",".join("?" for _ in draft) + ")",
                         list(draft.values()),
                     )
-                task = self.store.db.execute("SELECT user_id FROM tasks WHERE id=?", (transfer["task_id"],)).fetchone()
+                task = self.store.db.execute(
+                    "SELECT user_id,status FROM tasks WHERE id=?", (transfer["task_id"],)
+                ).fetchone()
             if task and task["user_id"] == transfer["user_id"]:
+                cached = self.store.db.execute("SELECT data FROM transfers WHERE id=?", (transfer_id,)).fetchone()
+                if cached:
+                    transfer = self.resolve_transfer(json.loads(cached[0]), transfer)
+                elif task["status"] in {"completed", "cancelled"}:
+                    continue  # An obsolete local draft cannot add payments to a terminal checkpoint.
                 with self.store.db:
                     self.store.db.execute(
                         "INSERT INTO transfers VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
@@ -277,6 +311,7 @@ class Wallets:
         return self.rabdi.load_admission(payment) if payment.get("kind") == "rabdi_native" else payment
 
     def save(self, transfer, *, checkpoint=True):
+        transfer["recorded_at_ns"] = max(time.time_ns(), int(transfer.get("recorded_at_ns", 0)) + 1)
         if transfer.get("kind") == "ccip" and transfer.get("phase") == "send" and transfer.get("tx_hash"):
             transfer["source_tx_hash"] = transfer["tx_hash"]
         self.persist_transfer(transfer)
@@ -530,6 +565,10 @@ class Wallets:
         confirmations = head - block_number + 1
         if confirmations < 2:
             return {**self.view(transfer), "confirmations": confirmations}
+        if transfer.get("kind") == "ccip_deployment":
+            from agent.ccip_deployment import confirmed
+
+            return await confirmed(self, transfer, receipt)
         if transfer.get("kind") == "ccip":
             return await self.ccip.source_receipt(transfer, receipt)
         transfer.update(
@@ -550,7 +589,7 @@ class Wallets:
         expected = transfer["transaction"]
         return (
             tx["from"].lower() == transfer["sender"].lower()
-            and (tx.get("to") or "").lower() == expected["to"].lower()
+            and (tx.get("to") or "").lower() == (expected.get("to") or "").lower()
             and int(tx["value"], 16) == int(transfer["value_wei"])
             and int(tx["nonce"], 16) == int(expected["nonce"], 16)
             and tx.get("input", "0x").lower() == expected.get("data", "0x").lower()

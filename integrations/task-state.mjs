@@ -46,6 +46,14 @@ export function dto(row, checkpointKey) {
     public_state: Object.fromEntries(publicFields.map(name => [name, row[name].value])) };
 }
 
+function verifyCheckpoint(row, observed, writer, instance) {
+  if (row.$key !== observed.$key || row.$creator.toLowerCase() !== writer.toLowerCase()
+    || row.$owner.toLowerCase() !== writer.toLowerCase() || row.$creationFlags.readonly !== true
+    || row.instance.value !== instance || row.task.value !== observed.task.value
+    || row.revision.value !== observed.revision.value || row.operation.value !== observed.operation.value
+    || row.status.value !== observed.status.value) throw Error('Untrusted checkpoint readback');
+}
+
 export async function readCurrent(reader, writer, instance, task, readLegacy) {
   // Resolve all revisions BEFORE filtering status. A stale mutable index is never executable state.
   const heads = await scan(reader, CurrentTasks, writer, instance, task);
@@ -72,13 +80,13 @@ export async function readCurrent(reader, writer, instance, task, readLegacy) {
     if (closed.has(id)) {
       // A retained terminal checkpoint wins even if an old mutable head is replayed or deleted.
       const fixed = await reader.getEntity(checkpoint.$key, Checkpoints);
-      if (fixed.$creationFlags.readonly !== true || fixed.$creator.toLowerCase() !== writer.toLowerCase()
-        || fixed.$owner.toLowerCase() !== writer.toLowerCase()) throw Error('Untrusted terminal checkpoint');
+      verifyCheckpoint(fixed, checkpoint, writer, instance);
       const result = dto(fixed, fixed.$key); result.current_key = head?.$key ?? null; rows.push(result); continue;
     }
     if (!head || !checkpoint || head.revision.value !== checkpoint.revision.value
       || head.operation.value !== checkpoint.operation.value) throw Error('Current task and checkpoint disagree');
     const fixed = await reader.getEntity(checkpoint.$key, Checkpoints);
+    verifyCheckpoint(fixed, checkpoint, writer, instance);
     for (const name of ['instance', 'task', 'revision', 'operation', 'encrypted', ...publicFields])
       if (head[name].value !== fixed[name].value) throw Error('Current task differs from immutable checkpoint');
     rows.push(dto(head, checkpoint.$key));

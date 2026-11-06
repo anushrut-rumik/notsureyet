@@ -58,8 +58,15 @@ def create_app(config: Config | None = None, *, models=None):
             raise HTTPException(503, f"Inference failed: {type(exc).__name__}. Check agent config.") from None
 
     @app.get("/tasks")
-    async def tasks(user_id: str = "local"):
-        return app.state.runtime.store.tasks(user_id)
+    async def tasks(user_id: str = "local", status: str | None = None, protocol: str | None = None):
+        return app.state.runtime.store.tasks(user_id, status=status, protocol=protocol)
+
+    @app.get("/tasks/{task_id}")
+    async def task_progress(task_id: str, user_id: str = "local"):
+        try:
+            return app.state.runtime.store.progress(user_id, task_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from None
 
     @app.get("/events")
     async def events(user_id: str = "local", after: int = 0):
@@ -72,6 +79,8 @@ def create_app(config: Config | None = None, *, models=None):
             task = store.task(body.user_id, task_id)
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from None
+        if task["status"] in {"completed", "cancelled"}:
+            raise HTTPException(409, "This task has ended; create new work explicitly")
         store.event(body.user_id, "task_reply", {"text": body.message}, task_id=task_id, source="user")
         store.update_task(
             body.user_id,

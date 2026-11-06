@@ -103,14 +103,23 @@ class Store:
             raise ValueError("No such task for this user")
         return dict(row)
 
-    def tasks(self, user_id: str) -> list[dict]:
-        return [
+    def tasks(self, user_id: str, *, status=None, protocol=None) -> list[dict]:
+        rows = [
             dict(row)
             for row in self.db.execute("SELECT * FROM tasks WHERE user_id=? ORDER BY created_at DESC", (user_id,))
         ]
+        return [row for row in rows if (status is None or row["status"] == status) and protocol in {None, "ira"}]
+
+    def progress(self, user_id, task_id):
+        return {"task": self.task(user_id, task_id), "events": self.events(user_id, task_id=task_id, limit=150)}
 
     def update_task(self, user_id: str, task_id: str, **changes):
-        self.task(user_id, task_id)
+        current = self.task(user_id, task_id)
+        if (
+            current["status"] in {"completed", "cancelled"}
+            and changes.get("status", current["status"]) != current["status"]
+        ):
+            raise ValueError("An ended task cannot be reopened; create new work explicitly")
         if changes.keys() - {"status", "notes", "wake_at", "instruction", "failures", "last_error"}:
             raise ValueError("Unknown task field")
         changes["updated_at"] = time.time()

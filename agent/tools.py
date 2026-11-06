@@ -138,8 +138,12 @@ def register_builtins(registry: Registry):
     @registry.tool()
     async def task_journal(ctx, task_id: str):
         """Read recorded progress, evidence, questions, and errors for a task."""
-        ctx.store.task(ctx.user_id, task_id)
-        return ctx.store.events(ctx.user_id, task_id=task_id, limit=150)
+        return ctx.store.progress(ctx.user_id, task_id)["events"]
+
+    @registry.tool()
+    async def task_status(ctx, task_id: str):
+        """Read the authoritative saved task status and protocol transaction/order references."""
+        return ctx.store.progress(ctx.user_id, task_id)
 
     @registry.tool(effect=True, modes=("chat",))
     async def reply_to_task(ctx, task_id: str, message: str):

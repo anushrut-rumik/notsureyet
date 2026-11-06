@@ -34,6 +34,7 @@ def capabilities(wallets):
             else "AGENT_CCIP_SENDER_ADDRESS (deployed CCIPSender on Ethereum Sepolia)",
         },
         "approval": "prepare_payment validates first and returns an unsigned review; storage approval is separate",
+        "sender_deployment": "prepare_ccip_sender_deployment uses connected MetaMask; no funding task required",
     }
 
 
@@ -175,6 +176,12 @@ async def refresh_review(wallets, user, transfer_id):
             tx = {k: v for k, v in payment["transaction"].items() if k not in {"gas", "gasPrice", "nonce"}}
             gas = (int(await rpc("eth_estimateGas", [tx, "latest"]), 16) * 12 + 9) // 10
             price = int(await rpc("eth_gasPrice", []), 16)
+            if payment.get("kind") == "ccip_deployment":
+                from agent.ccip_deployment import contract_address
+
+                price *= 2
+                if gas * price > amount_wei(wallets.config.env.get("AGENT_CCIP_MAX_DEPLOYMENT_FEE_ETH") or "0.005"):
+                    raise ValueError("Refreshed deployment gas exceeds AGENT_CCIP_MAX_DEPLOYMENT_FEE_ETH")
             if (
                 int(await rpc("eth_getBalance", [payment["sender"], "latest"]), 16)
                 < int(payment["value_wei"]) + gas * price
@@ -183,6 +190,8 @@ async def refresh_review(wallets, user, transfer_id):
             tx.update(gas=hex(gas), gasPrice=hex(price))
             if payment.get("kind") != "rabdi_native":
                 tx["nonce"] = await rpc("eth_getTransactionCount", [payment["sender"], "pending"])
+            if payment.get("kind") == "ccip_deployment":
+                payment["recipient"] = contract_address(payment["sender"], int(tx["nonce"], 16))
             payment.update(
                 transaction=tx,
                 status="awaiting_approval",
@@ -229,7 +238,11 @@ def register_payment_tools(registry):
             from agent.ccip_simulation import review as simulation_review
 
             ctx.payment_response = simulation_review(payment)
-            return {**payment, "review_message": ctx.payment_response, "storage_status": "not_required_for_simulation"}
+            return {
+                **payment,
+                "review_message": ctx.payment_response,
+                "storage_status": payment.get("storage_status", "local_result"),
+            }
         if payment["status"] in {"awaiting_approval", "awaiting_signature"}:
             review = ChatCommands.review(payment)
         else:

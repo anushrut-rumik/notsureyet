@@ -1,0 +1,49 @@
+{
+  "mode": "live_arkiv_read_only",
+  "task_id": "ebee7d898f5e4e6f8b2d91acb3d0a5b8",
+  "title": "Send 0.0001 CCIP-BnM to Base Sepolia",
+  "final_status": "needs_input",
+  "public_state": {
+    "status": "needs_input",
+    "capability": "payment",
+    "protocol": "ccip",
+    "source_network": "ethereum_sepolia",
+    "destination_network": "base_sepolia",
+    "reference": "9b4eb2dd6993400b9942cfb5e1f3e8bc",
+    "source_tx": "",
+    "destination_tx": "",
+    "order_id": "0x1e4be14ae91eb357d97dad5ec4133837e1932adc5f3987332206b24fe0957540",
+    "progress": "awaiting_signature"
+  },
+  "arkiv": {
+    "entity_key": "0x6c000c24a490516352a686ffb993901f8bc63be975e3cb5977aa418bb5c26d12",
+    "current_key": "0x6c163bd133e7f6fc8f68150c1819d39978751ca217fd1df1e2fc87bd114d1541",
+    "schema_version": 2,
+    "task": "ebee7d898f5e4e6f8b2d91acb3d0a5b8",
+    "revision": "1793968402420254",
+    "operation": "0xe12575177465c36910243c0800a15956ef51046f39a11aecd1f6105b54928f36",
+    "expires_at_block": "1587321",
+    "public_state": {
+      "status": "needs_input",
+      "capability": "payment",
+      "protocol": "ccip",
+      "source_network": "ethereum_sepolia",
+      "destination_network": "base_sepolia",
+      "reference": "9b4eb2dd6993400b9942cfb5e1f3e8bc",
+      "source_tx": "",
+      "destination_tx": "",
+      "order_id": "0x1e4be14ae91eb357d97dad5ec4133837e1932adc5f3987332206b24fe0957540",
+      "progress": "awaiting_signature"
+    },
+    "instance": "a773f7e82d3ad7f479ca53b859396fcf60f3f3e76724a8de8762e63088de63e0",
+    "writer": "0x29a73a629FFd5323dDcA4A474210d38d2722D41d"
+  },
+  "recovered_from_empty_database": true,
+  "authorized_encryption_key_restored": true,
+  "wallet_signing_keys_copied": false,
+  "payment_journals_copied": false,
+  "inference_requests": 0,
+  "payment_submissions": 0,
+  "blocked_mutations": [],
+  "event_count": 2
+}

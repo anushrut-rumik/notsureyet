@@ -1,0 +1,15 @@
+{
+  "mode": "controlled_rpc",
+  "task_id": "8c528959c31e417a97d29402020e2a76",
+  "protocol": "ccip",
+  "source_transaction": "0xe8ebbfcb227b83dc7e1fc00b3e5bb04e86feda611dd731ad12bdfdcd3f2942e5",
+  "message_id": "0xabababababababababababababababababababababababababababababababab",
+  "destination_transaction": "0xdededededededededededededededededededededededededededededededede",
+  "recovered_from_empty_database": true,
+  "payment_keys_copied": false,
+  "payment_journals_copied": false,
+  "payment_submissions_before_restart": 1,
+  "payment_submissions_after_restart": 0,
+  "final_status": "completed",
+  "verified_at": 1793968459.968394
+}

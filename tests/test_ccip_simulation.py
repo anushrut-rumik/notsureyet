@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent import ccip_simulation
+from agent.arkiv import ArkivError
 from agent.engine import Engine
 from agent.payments import capabilities, prepare_request, register_payment_tools
 from agent.tools import Registry, register_builtins
@@ -28,7 +29,7 @@ def simulation_result(units):
     }
 
 
-async def test_simulation_bypasses_live_deployment_balances_storage_and_signing(payments, monkeypatch):
+async def test_simulation_preserves_existing_pending_storage_and_never_signs_payments(payments, monkeypatch):
     config, store, bridge, wallets = payments
     config.env["AGENT_CCIP_MODE"] = "simulation"
     existing = store.create_task("u", "Old live task", "Do not change", "Receipt")
@@ -55,7 +56,9 @@ async def test_simulation_bypasses_live_deployment_balances_storage_and_signing(
     assert not wallets.list("u") and not wallets.rpc_override.calls
     assert bridge.pending("u") == pending
     assert store.task("u", existing["id"])["instruction"] == "Do not change"
-    assert store.db.execute("SELECT count(*) FROM tasks WHERE user_id='u'").fetchone()[0] == 1
+    assert store.db.execute("SELECT count(*) FROM tasks WHERE user_id='u'").fetchone()[0] == 2
+    assert store.task("u", result["task_id"])["status"] == "completed"
+    assert result["storage_status"] == "awaiting_storage_approval"
     assert capabilities(wallets)["ccip"]["configured"]
     assert capabilities(wallets)["ccip"]["missing_setting"] is None
     # A fresh Wallets instance reads the saved result rather than executing another transfer.
@@ -64,7 +67,7 @@ async def test_simulation_bypasses_live_deployment_balances_storage_and_signing(
         repeated = await prepare_request(restored, "u", **request)
         assert repeated["id"] == result["id"] and repeated["reused_result"]
         assert len(calls) == 1
-        with pytest.raises(ValueError, match="decrypt"):
+        with pytest.raises((ValueError, ArkivError)):
             ccip_simulation.status(restored, "someone-else", result["id"])
     finally:
         await restored.close()
@@ -98,7 +101,7 @@ async def test_payment_recovery_ignores_diagnostic_json_files(payments):
     assert not wallets.list("u")
 
 
-async def test_chat_returns_simulation_evidence_without_wallet_or_storage_links(payments, monkeypatch):
+async def test_chat_returns_simulation_evidence_and_separate_storage_approval(payments, monkeypatch):
     config, store, bridge, wallets = payments
     config.env["AGENT_CCIP_MODE"] = "simulation"
 
@@ -126,7 +129,10 @@ async def test_chat_returns_simulation_evidence_without_wallet_or_storage_links(
     assert "Simulation message ID:" in reply and RECIPIENT in reply
     assert "real ETH and CCIP-BnM balances are unchanged" in reply
     assert "metamask" not in reply.lower() and "approve " not in reply
-    assert not bridge.pending("u") and not bridge.rows and not store.tasks("u")
+    assert bridge.pending("u")["public_state"]["status"] == "completed"
+    assert bridge.pending("u")["public_state"]["protocol"] == "chainlink_local"
+    assert not bridge.rows and not store.tasks("u")
+    assert not wallets.rpc_override.calls
 
 
 async def test_real_chainlink_local_runner_uses_requested_amount_and_recipient():

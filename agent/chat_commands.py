@@ -20,6 +20,10 @@ class ChatCommands:
 
     @staticmethod
     def review(payment):
+        if payment.get("kind") == "ccip_deployment":
+            from agent.ccip_deployment import review
+
+            return review(payment)
         if payment.get("kind") == "ccip":
             phase = "Approve token allowance" if payment["phase"] == "allowance" else "Send cross-chain transfer"
             return (
@@ -84,10 +88,15 @@ class ChatCommands:
             return "\n".join(f"{task['id']} · {task['status']} · {task['title']}" for task in tasks)
         match = re.fullmatch(r"/?task ([0-9a-f]{32})", command, re.I)
         if match:
-            task = next((item for item in self.store.tasks(user) if item["id"] == match[1]), None)
-            if not task:
-                raise ValueError("No such task in this chat")
-            return f"{task['title']}: {task['status']}\n{task['notes']}"
+            progress = self.store.progress(user, match[1])
+            task = progress["task"]
+            state = progress.get("public_state", {})
+            refs = "\n".join(
+                f"{key}: {state[key]}"
+                for key in ("protocol", "progress", "reference", "source_tx", "order_id", "destination_tx")
+                if state.get(key)
+            )
+            return f"{task['title']}: {task['status']}\n{task['notes']}" + ("\n" + refs if refs else "")
         if command.lower().lstrip("/") == "recover":
             if self.runtime.jobs:
                 return "A task is still running. Wait for it to pause before requesting recovery."
@@ -122,7 +131,8 @@ class ChatCommands:
             return (
                 f"Your Arkiv wallet: {status['writer']}\nNetwork: Rabdi (7794095)\n"
                 f"Balance: {balance} tGLM\nPublic query scope: {status['instance']}\n"
-                "Send Rabdi tGLM to this wallet for task storage. Records last 30 days. " + mode + pending
+                "Send Rabdi tGLM to this wallet for task storage. Active records last 30 days; "
+                "completed/cancelled records last 180 days. " + mode + pending
             )
         match = re.fullmatch(r"/?transfer ([0-9.]+) (0x[0-9a-fA-F]{40})", command, re.I)
         if match:
@@ -167,6 +177,13 @@ class ChatCommands:
                 event_id = None
             result = await self.wallets.approve(user, payment["id"], event_id)
             if result.get("confirmation_link"):
+                if result.get("kind") == "ccip_deployment":
+                    return (
+                        "CCIP sender deployment reviewed in chat. No token transfer.\n"
+                        "Open MetaMask on Ethereum Sepolia and review the contract creation and gas fee:\n"
+                        f"{result['confirmation_link']}\n"
+                        "I will verify the receipt and save the deployed address automatically."
+                    )
                 return (
                     f"Payment reviewed in chat: {result['amount']} {result['asset']} to {result['recipient']}.\n"
                     "Open MetaMask to review and sign this exact payment:\n"

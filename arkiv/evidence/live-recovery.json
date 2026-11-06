@@ -1,0 +1,49 @@
+{
+  "mode": "live_arkiv_read_only",
+  "task_id": "e5d554be8a4144d1a2a1696677c530b0",
+  "title": "CCIP local simulation",
+  "final_status": "completed",
+  "public_state": {
+    "status": "completed",
+    "capability": "simulation",
+    "protocol": "chainlink_local",
+    "source_network": "local_evm",
+    "destination_network": "local_evm",
+    "reference": "f5a78feb5e1daa422140761d1e29a88d948710e6b1a5724ed072469b5fae0b6d",
+    "source_tx": "",
+    "destination_tx": "",
+    "order_id": "0x306e78f869a0385589ef1f45629ebdcf010285c8442a85232e0468c2397feb29",
+    "progress": "simulation_delivered"
+  },
+  "arkiv": {
+    "entity_key": "0x2904e907a8dd1c2b1687351daca88fc519420bd7d0974d3a0c87866a6a4fa1f6",
+    "current_key": "0xcff2d21d69d3e5463eb2469345f031a82030e17008848b8912f3f65e1e41ba67",
+    "schema_version": 2,
+    "task": "e5d554be8a4144d1a2a1696677c530b0",
+    "revision": "1793968171871239",
+    "operation": "0x051c2622761de3f5b93927584770d4938c3611a14efa5878ccd75c10c45ad23d",
+    "expires_at_block": "8067206",
+    "public_state": {
+      "status": "completed",
+      "capability": "simulation",
+      "protocol": "chainlink_local",
+      "source_network": "local_evm",
+      "destination_network": "local_evm",
+      "reference": "f5a78feb5e1daa422140761d1e29a88d948710e6b1a5724ed072469b5fae0b6d",
+      "source_tx": "",
+      "destination_tx": "",
+      "order_id": "0x306e78f869a0385589ef1f45629ebdcf010285c8442a85232e0468c2397feb29",
+      "progress": "simulation_delivered"
+    },
+    "instance": "8ad85568f8a12be483ef170103a4bdf71d4a187113d74524b183d37bf7fb668b",
+    "writer": "0x29a73a629FFd5323dDcA4A474210d38d2722D41d"
+  },
+  "recovered_from_empty_database": true,
+  "authorized_encryption_key_restored": true,
+  "wallet_signing_keys_copied": false,
+  "payment_journals_copied": false,
+  "inference_requests": 0,
+  "payment_submissions": 0,
+  "blocked_mutations": [],
+  "event_count": 2
+}

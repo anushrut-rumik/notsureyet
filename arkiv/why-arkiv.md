@@ -1,15 +1,30 @@
 # Why Arkiv
 
-The chat is an interface to work that survives a conversation. Arkiv holds the
-checkpoints the application must query to list tasks and restart their execution.
-Removing Arkiv breaks the default task list, task creation and recovery; payments
-cannot run in the explicit SQLite-only development mode.
+## What would users lose if this stayed in SQLite/Postgres?
 
-SQLite is an execution cache and keeps local conversations/preferences. It is not
-a fallback task authority. An independent SDK client can discover the same
-publisher's checkpoint records without our API. Authorized users need the separate
-local encryption key to read private task contents.
+An independently queryable copy of task state owned by their selected wallet.
+Lists and progress query Arkiv. A separate SDK client reads public state without
+our HTTP server. With authorized encryption-key access, fresh Ira reconstructs
+private task progress and already-submitted payment identifiers after losing its
+execution database.
 
-This gives a concrete demonstration of externally queryable task state. It does
-not claim that Arkiv signs payments, knows a MetaMask key, or eliminates key custody,
-provider failures, transaction fees or testnet resets.
+Conventional databases also implement durability/recovery. Arkiv contributes the
+external query surface and wallet-owned records instead of relying only on our
+database/API. Public readers inspect metadata; key holders recover private contents.
+Ownership does not eliminate custody, fees or availability risks.
+
+Default task lists, creation, progress and recovery depend on Arkiv. Removing it
+stops these paths. Explicit SQLite development mode is separate and disables
+payments. [Query](../README.md), [recovery evidence](demo.md).
+
+## What stays off Arkiv, and why?
+
+- General chat/preferences: avoid publishing every conversation's metadata/cost.
+- Signing/encryption keys and credentials: reading an entity never grants spending.
+- Generated workspace files: a checkpoint reference does not restore file bytes
+  absent from its snapshot.
+- WhatsApp routing/deduplication/delivery admission: an Arkiv receipt cannot prove
+  handset delivery.
+- Local payment admission journals: protect checkpoint gaps. Newer verified Arkiv
+  state cannot be overwritten by an older local draft. Clean-instance tests omit
+  those journals entirely.

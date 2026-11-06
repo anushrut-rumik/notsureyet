@@ -33,10 +33,11 @@ function boot(accounts=[wallet],options={}){
   async fetch(url,fetchOptions){const body=fetchOptions.body?JSON.parse(fetchOptions.body):null;api.push([url,body]);
    let data=options.kind==='arkiv'?{kind:'arkiv',claimed:false,payment:{sender:wallet,recipient:'0x'+'44'.repeat(20),amount:'0',asset:'tGLM',chain_id:7794095,max_fee_wei:'1000000000000000',status:'external_prepared'}}:{kind:'connect',completed:false,expected_address:wallet};
    if(options.kind==='ccip')data={kind:'payment',claimed:false,payment:{kind:'ccip',phase:'send',sender:wallet,recipient:'0x'+'12'.repeat(20),amount:'1',asset:'CCIP-BnM',chain_id:11155111,max_fee_wei:'100000000000000',status:'awaiting_signature',destination:'Base Sepolia',sender_contract:'0x'+'45'.repeat(20),ccip_fee_eth:'0.0001',ccip_fee_cap_eth:'0.00011'}};
+   if(options.kind==='ccip_deployment')data={kind:'payment',claimed:false,payment:{kind:'ccip_deployment',sender:wallet,recipient:'0x'+'12'.repeat(20),amount:'0',asset:'ETH',chain_id:11155111,max_fee_wei:'100000000000000',status:'awaiting_signature'}};
    if(url.endsWith('/challenge'))data={message:'Connect this wallet to Ira',address:wallet};
    else if(url.endsWith('/connect'))data={connected:true,address:wallet};
    else if(url.endsWith('/progress'))data={recorded:true};
-   else if(url.endsWith('/claim'))data={transaction:{from:wallet,to:'0x'+'44'.repeat(20),chainId:options.kind==='ccip'?'0xaa36a7':'0x76edaf',data:'0x1234'}};
+   else if(url.endsWith('/claim'))data={transaction:{from:wallet,...(options.kind==='ccip_deployment'?{}:{to:'0x'+'44'.repeat(20)}),chainId:['ccip','ccip_deployment'].includes(options.kind)?'0xaa36a7':'0x76edaf',data:'0x1234'}};
    else if(url.endsWith('/result'))data={saved:true};
    return {ok:true,json:async()=>data};
   }};
@@ -57,6 +58,19 @@ test('mobile connection refreshes permissions on Sepolia before signing the exac
  assert.equal(app.api.find(([url])=>url.endsWith('/challenge'))[1].chain_id,11155111);
  assert.ok(app.api.some(([url])=>url.endsWith('/connect')));
  assert.match(app.nodes.get('message').textContent,/Connected/);
+});
+test('CCIP deployment is explicit contract creation on Sepolia using the existing signer',async()=>{
+ const app=boot([wallet],{kind:'ccip_deployment'});
+ await vm.runInContext('init()',app.context);
+ assert.equal(app.nodes.get('title').textContent,'Deploy CCIP sender');
+ assert.match(app.nodes.get('intro').textContent,/deployment gas/);
+ assert.match(app.nodes.get('action').textContent,/contract deployment/);
+ await app.nodes.get('action').onclick();
+ const sends=app.calls.filter(c=>c.method==='eth_sendTransaction');
+ assert.equal(sends.length,1);
+ assert.equal(sends[0].params[0].chainId,'0xaa36a7');
+ assert.equal(sends[0].params[0].to,undefined);
+ assert.equal(sends[0].params[0].data,'0x1234');
 });
 test('an account returned by connect cannot sign without current account access',async()=>{
  const app=boot([wallet],{permitted:[]});
