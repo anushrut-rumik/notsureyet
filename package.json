@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/arkiv-bridge.test.mjs tests/arkiv-current.test.mjs tests/mobile-wallet.test.mjs",
+    "test": "node --test tests/arkiv-bridge.test.mjs tests/arkiv-current.test.mjs tests/mobile-wallet.test.mjs && npm run lending:test",
     "arkiv:read": "node integrations/read-tasks.mjs",
     "ccip:deps": "node scripts/install-ccip-deps.mjs",
     "ccip:test": "node scripts/foundry.mjs forge test --match-path contracts/test/CCIPSender.t.sol -vv",
@@ -12,14 +12,19 @@
     "ccip:deploy": "node scripts/foundry.mjs forge script contracts/script/DeployCCIPSender.s.sol:DeployCCIPSender --rpc-url sepolia --account ccip-deployer --broadcast",
     "ccip:forge": "node scripts/foundry.mjs forge",
     "ccip:cast": "node scripts/foundry.mjs cast",
-    "ccip:check": "node --env-file=.env scripts/check-ccip-route.mjs"
+    "ccip:check": "node --env-file=.env scripts/check-ccip-route.mjs",
+    "lending:build": "tsc -p tsconfig.lending.json",
+    "lending:test": "npm run lending:build && node --test tests/lending.test.mjs",
+    "lending:examples": "npm run lending:build && node scripts/lending-examples.mjs"
   },
   "dependencies": {
     "@arkiv-network/sdk": "1.0.1",
-    "viem": "^2.38.0"
+    "viem": "^2.38.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@foundry-rs/cast": "1.7.1",
-    "@foundry-rs/forge": "1.7.1"
+    "@foundry-rs/forge": "1.7.1",
+    "typescript": "5.9.3"
   }
 }

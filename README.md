@@ -1,5 +1,13 @@
 # A small agent that gets work done
 
+## Multichain lending decision logic (Part 1)
+
+`npm run lending:examples` runs labelled, offline move/hold scenarios.
+`npm run lending:test` verifies the shared TypeScript rules and application/CRE
+interface. See [scope, arithmetic, architecture and verification](docs/multichain-token-manager.md).
+This module makes recommendations only; lending execution and WhatsApp scheduling
+are later parts.
+
 ## Arkiv integration: evidence and judging
 
 Ira uses **Rabdi (chain 7794095)** through **@arkiv-network/sdk 1.0.1**. Task lists,
