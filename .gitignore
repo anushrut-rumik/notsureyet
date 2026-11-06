@@ -1,0 +1,20 @@
+.venv/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.local/
+workspace/
+.DS_Store
+rc-harness copy/
+evals/reports/
+node_modules/
+playwright-report/
+test-results/
+contracts/out/
+contracts/cache/
+broadcast/
+contracts/lib/

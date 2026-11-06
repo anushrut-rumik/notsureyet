@@ -1,0 +1,42 @@
+name: notsureyet-whatsapp
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    env_file: ../../.local/whatsapp.env
+    volumes:
+      - whatsapp-keys:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U web3wa -d web3wa"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:56389:6379"
+    volumes:
+      - whatsapp-events:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  sidecar:
+    build:
+      context: ../../rc-harness copy/ira/wa
+    image: notsureyet-whatsapp:local
+    env_file: ../../.local/whatsapp.env
+    ports:
+      - "127.0.0.1:58083:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  whatsapp-keys:
+  whatsapp-events:

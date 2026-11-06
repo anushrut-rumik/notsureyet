@@ -1,0 +1,33 @@
+# OpenAI GPT-6 Luna for every inference role. Keys stay in .env/environment.
+[routes]
+default = "general"
+chat = "general"
+planner = "planning"
+worker = "workers"
+
+[endpoints.general]
+provider = "openai"
+protocol = "responses"
+base_url = "https://api.openai.com/v1"
+model = "gpt-6-luna"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 180
+options = {max_output_tokens = 8192}
+
+[endpoints.planning]
+provider = "openai"
+protocol = "responses"
+base_url = "https://api.openai.com/v1"
+model = "gpt-6-luna"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 180
+options = {max_output_tokens = 16384}
+
+[endpoints.workers]
+provider = "openai"
+protocol = "responses"
+base_url = "https://api.openai.com/v1"
+model = "gpt-6-luna"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 180
+options = {max_output_tokens = 8192}
