@@ -82,6 +82,16 @@ class Engine:
             data["recent_channel_messages"] = [
                 {"event_id": row["id"], "task_id": row["task_id"], **json.loads(row["data"])} for row in reversed(rows)
             ]
+        if hasattr(self, "lending") and self.lending.mode != "off":
+            data["lending_rules"] = (
+                "Use lending tools for test-token management. Collect only missing settings. "
+                "The user must explicitly approve the exact review from WhatsApp. Models cannot approve. "
+                "Never give shell commands or raw calldata for lending. Do not call start, pause or withdraw "
+                "unless the user requests that action. Routine scheduling is handled by the application. "
+                "Keep mock execution, testnet reads, projected interest and confirmed receipts distinct. "
+                "Live testnet execution requires reviewed compatible deployments and funded agent wallets. "
+                "Never claim a receipt before verification."
+            )
         return (
             prompts.PERSONA
             + (
@@ -163,7 +173,10 @@ class Engine:
                 )
                 continue
             payment_tools = {
-                "prepare_payment", "refresh_payment_review", "simulate_ccip_transfer", "ccip_simulation_status",
+                "prepare_payment",
+                "refresh_payment_review",
+                "simulate_ccip_transfer",
+                "ccip_simulation_status",
                 "prepare_ccip_sender_deployment",
             }
             payment_turn = ctx.mode == "chat" and any(
@@ -178,6 +191,8 @@ class Engine:
                     result = {"ok": False, "error": "The task ended or paused earlier in this step. Tool was not run."}
                 elif payment_turn and (call["function"]["name"] not in payment_tools or ctx.payment_response):
                     result = {"ok": False, "error": "Payment validation takes priority; other actions were not run."}
+                elif ctx.mode == "chat" and ctx.review_response:
+                    result = {"ok": False, "error": "Review the exact lending plan before any further action."}
                 elif ctx.mode == "chat" and ctx.started_tasks:
                     result = {"ok": False, "error": "Work was handed to the background task. Tool was not run here."}
                 else:
@@ -202,6 +217,8 @@ class Engine:
                 if ctx.task_id:
                     self.store.flush_task(ctx.task_id)
                     await self.store.checkpoint_barrier(ctx.task_id)
+            if ctx.mode == "chat" and ctx.review_response:
+                return ChatReply(emoji_reaction=None, response_messages=[ctx.review_response])
             if ctx.mode == "chat" and ctx.payment_response:
                 return ChatReply(emoji_reaction=None, response_messages=[ctx.payment_response])
             if ctx.mode == "chat" and ctx.started_tasks:
@@ -262,8 +279,8 @@ class Engine:
             eligible = bool(text.strip()) and read and (not interaction or interaction.reactions)
             if eligible:
                 rows = self.store.db.execute(
-                    "SELECT data FROM events WHERE user_id=? AND kind='chat_message' AND id<? "
-                    "ORDER BY id DESC LIMIT 6", (user_id, event_id),
+                    "SELECT data FROM events WHERE user_id=? AND kind='chat_message' AND id<? ORDER BY id DESC LIMIT 6",
+                    (user_id, event_id),
                 ).fetchall()
                 recent = [json.loads(row[0]) for row in reversed(rows)]
                 job = asyncio.create_task(self.quick_reaction(user_id, event_id, text, recent, read_at))
@@ -271,7 +288,7 @@ class Engine:
                 job.add_done_callback(self.reaction_jobs.discard)
             if commands is not None:
                 try:
-                    reply = await commands.handle(user_id, text)
+                    reply = await commands.handle(user_id, text, user_event=event_id)
                 except ValueError as exc:
                     reply = str(exc)
                 if reply is not None:

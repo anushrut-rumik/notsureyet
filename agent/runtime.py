@@ -4,6 +4,7 @@ import json
 import time
 
 from agent.arkiv import ArkivError, Bridge, open_store
+from agent.balances import register_balance_tools
 from agent.ccip import register_ccip_tools
 from agent.ccip_deployment import register_deployment_tools
 from agent.ccip_simulation import register_simulation_tools
@@ -11,6 +12,7 @@ from agent.chat_commands import ChatCommands
 from agent.chat_errors import record_chat_error
 from agent.config import Config
 from agent.engine import Engine
+from agent.lending import Lending, register_lending_tools
 from agent.payments import register_payment_tools
 from agent.providers import Models
 from agent.tools import Registry, register_builtins
@@ -26,10 +28,13 @@ class Runtime:
         self.registry = Registry()
         register_builtins(self.registry)
         register_wallet_tools(self.registry)
+        register_balance_tools(self.registry)
         register_ccip_tools(self.registry)
         register_payment_tools(self.registry)
         register_simulation_tools(self.registry)
         register_deployment_tools(self.registry)
+        if config.env.get("AGENT_LENDING_MODE", "off") != "off":
+            register_lending_tools(self.registry)
         for module in config.tool_modules:
             importlib.import_module(module).register_tools(self.registry)
         self.engine = Engine(config, self.store, self.models, self.registry)
@@ -37,6 +42,8 @@ class Runtime:
         if isinstance(getattr(self.store, "bridge", None), Bridge):
             self.store.bridge.signature_link = lambda user: self.wallets.mobile.issue(user, "arkiv")["metamask_url"]
         self.engine.wallets = self.wallets
+        self.lending = Lending(self)
+        self.engine.lending = self.lending
         self.commands = ChatCommands(self)
         self.jobs = set()
         self.recovered = False
@@ -87,6 +94,7 @@ class Runtime:
     async def worker(self):
         try:
             while True:
+                await self.lending.tick()
                 if not self.recover(strict=False):
                     await asyncio.sleep(1)
                     continue

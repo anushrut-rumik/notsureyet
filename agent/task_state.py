@@ -15,7 +15,9 @@ PUBLIC_FIELDS = (
 TERMINAL = {"completed", "cancelled"}
 
 
-def public_state(snapshot):
+def public_state(snapshot, *, version=2):
+    if version not in {1, 2}:
+        raise ValueError("Unknown public task state version")
     task = snapshot["task"]
     state = dict.fromkeys(PUBLIC_FIELDS, "")
     state.update(status=task["status"], capability="task", protocol="ira", progress=task["status"])
@@ -25,10 +27,16 @@ def public_state(snapshot):
     if transfers:
         payment = transfers[0]
         ccip = payment.get("kind") == "ccip"
-        source = "arkiv_rabdi" if payment.get("kind") == "rabdi_native" else "ethereum_sepolia"
+        source = {7794095: "arkiv_rabdi", 84532: "base_sepolia"}.get(payment.get("chain_id"), "ethereum_sepolia")
+        if version == 1:
+            source = "arkiv_rabdi" if payment.get("kind") == "rabdi_native" else "ethereum_sepolia"
         state.update(
             capability="payment",
-            protocol="ccip" if ccip else "native",
+            protocol="ccip"
+            if ccip
+            else "erc20"
+            if version == 2 and payment.get("kind") == "erc20_transfer"
+            else "native",
             source_network=source,
             destination_network="base_sepolia" if ccip else source,
             reference=payment["id"],
@@ -62,3 +70,16 @@ def public_state(snapshot):
     if any(not isinstance(value, str) or len(value.encode()) > 128 for value in state.values()):
         raise ValueError("Task metadata must use bounded public identifiers")
     return state
+
+
+def valid_stored_public_state(snapshot):
+    """Unversioned historical snapshots used either deployed projection format.
+
+    Both must still match the authenticated snapshot exactly. New snapshots name
+    their format and cannot fall back to an earlier projection.
+    """
+    version = snapshot.get("public_state_version")
+    if version is not None and (type(version) is not int or version not in {1, 2}):
+        return False
+    versions = (1, 2) if version is None else (version,)
+    return any(snapshot.get("public_state") == public_state(snapshot, version=v) for v in versions)

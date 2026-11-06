@@ -92,6 +92,30 @@ contract ExecutionStrategyWalletTest {
     Wallet source;
     Wallet destination;
 
+    function testOwnerWithdrawsPrincipalAndReserveToSelf() public {
+        uint256 principal = pool.balanceOf(address(source));
+        uint256 idle = token.balanceOf(address(source));
+        uint256 beforeBalance = token.balanceOf(owner);
+        vm.prank(owner);
+        source.withdrawToOwner(principal, idle);
+        require(pool.balanceOf(address(source)) == 0);
+        require(token.balanceOf(address(source)) == 0);
+        require(token.balanceOf(owner) == beforeBalance + principal + idle);
+    }
+
+    function testOtherAccountCannotWithdrawPrincipal() public {
+        vm.expectRevert(Wallet.Unauthorized.selector);
+        source.withdrawToOwner(1, 0);
+    }
+
+    function testOverWithdrawalRevertsAtomically() public {
+        uint256 principal = pool.balanceOf(address(source));
+        vm.prank(owner);
+        vm.expectRevert(Wallet.InvalidInstruction.selector);
+        source.withdrawToOwner(principal + 1, 0);
+        require(pool.balanceOf(address(source)) == principal);
+    }
+
     function setUp() public {
         vm.warp(1000);
         vm.chainId(11155111);
@@ -193,6 +217,38 @@ contract ExecutionStrategyWalletTest {
         );
         Wallet.Deposit memory d = destination.getDeposit(bytes32(uint256(1)));
         require(d.state == Wallet.DepositState.DEPOSITED && d.amount == 8 ether);
+    }
+
+    function testFullTransferThenPrincipalWithdrawalOnCurrentChains() public {
+        send();
+        vm.prank(owner);
+        vm.expectRevert(Wallet.InvalidInstruction.selector);
+        source.withdrawToOwner(0, 2 ether);
+        vm.chainId(84532);
+        router.deliver(destination, message());
+        uint256 beforeBalance = token.balanceOf(owner);
+        vm.prank(owner);
+        destination.withdrawToOwner(8 ether, 2 ether);
+        require(token.balanceOf(owner) == beforeBalance + 10 ether);
+        require(destinationPool.balanceOf(address(destination)) == 0);
+        vm.chainId(11155111);
+        vm.prank(owner);
+        source.settleOperation(instruction().operationId, bytes32(uint256(1)));
+        vm.prank(owner);
+        source.withdrawToOwner(0, 2 ether);
+        require(token.balanceOf(owner) == beforeBalance + 12 ether);
+        require(router.sends() == 1);
+    }
+
+    function testWithdrawalCannotSpendReservedFailedInbound() public {
+        send();
+        vm.chainId(84532);
+        fillDestination();
+        router.deliver(destination, message());
+        vm.prank(owner);
+        vm.expectRevert(Wallet.InvalidInstruction.selector);
+        destination.withdrawToOwner(0, 1 ether);
+        require(destination.reservedInbound() == 8 ether);
     }
 
     function testDuplicateAndConcurrentNewOperationCannotSend() public {

@@ -1,0 +1,13 @@
+{
+  "network": "Base Sepolia",
+  "chain_id": 84532,
+  "transaction_hash": "0x772334ee48ee3f606d0e49ad91cd7cc9dc5c1552aa22933f24127b73257fae78",
+  "block_number": 55376164,
+  "receipt_status": "0x1",
+  "sender": "0x66051Eef2e7DD1b410C6E68EeDF8ABBddB783Ee1",
+  "recipient": "0x29a73a629FFd5323dDcA4A474210d38d2722D41d",
+  "amount_eth": "0.005",
+  "execution": "MetaMask delegation; relayer outer transaction, native transfer inside smart account",
+  "verified_by": "Canonical RPC receipt, exact decoded single-call execution, RedeemedDelegation event, known EIP-7702 implementation; independent Blockscout internal transfer corroboration",
+  "explorer": "https://base-sepolia.blockscout.com/tx/0x772334ee48ee3f606d0e49ad91cd7cc9dc5c1552aa22933f24127b73257fae78"
+}

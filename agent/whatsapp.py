@@ -24,6 +24,7 @@ class WhatsAppTurn:
         self.typing = False
         self.metadata = {
             "name": "whatsapp", "chat": event["chat"], "message_id": event["id"],
+            "verified_transport": True,
             # Direct-message receipts/reactions key the address from the chat.
             # The stable LID identifies the owner; it may be a different address.
             "sender": event["chat"],
@@ -233,6 +234,8 @@ class IraWhatsApp:
     async def deliver_once(self):
         self.recover_interrupted()
         for user, chat, cursor in self.db.execute("SELECT user_id,chat,cursor FROM routes").fetchall():
+            if chat not in self.allowed:
+                continue
             for event in self.runtime.store.events(user, after=cursor):
                 reaction = event["kind"] == "chat_reaction"
                 written = event["kind"] == "chat_message" and event["data"].get("role") == "assistant"

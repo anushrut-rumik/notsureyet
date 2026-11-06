@@ -1,0 +1,24 @@
+No files changed, compilation skipped
+
+Ran 18 tests for contracts/test/lending/part3/ExecutionStrategyWallet.t.sol:ExecutionStrategyWalletTest
+[PASS] testAllTokenEntriesAccountedAndFixedOwnerRecovery() (gas: 888824)
+[PASS] testCaughtDepositFailureRetainsFullMessageAndRetriesWithoutSend() (gas: 880363)
+[PASS] testDepletedFeeBalanceBeforeWithdrawal() (gas: 127390)
+[PASS] testDuplicateAndConcurrentNewOperationCannotSend() (gas: 335798)
+[PASS] testEip712DigestMatchesIndependentViemVector() (gas: 21578)
+[PASS] testFeeDriftAndUnsupportedLaneFailBeforeWithdrawal() (gas: 143150)
+[PASS] testFullTransferThenPrincipalWithdrawalOnCurrentChains() (gas: 736214)
+[PASS] testHappyPathExactFeeReservesAndVerifiedPosition() (gas: 741731)
+[PASS] testMainnetAndPeerRebindRejected() (gas: 85495)
+[PASS] testOfficialMockForwarderRequiresEmptyMetadataAndIndependentOwnerSignature() (gas: 4194418)
+[PASS] testOtherAccountCannotWithdrawPrincipal() (gas: 8569)
+[PASS] testOuterForwarderCanSucceedWithInnerFailure() (gas: 88870)
+[PASS] testOverWithdrawalRevertsAtomically() (gas: 30037)
+[PASS] testOwnerWithdrawsPrincipalAndReserveToSelf() (gas: 71799)
+[PASS] testReceiverRejectsWrongRouterPairTokensMalformedAndReplay() (gas: 855140)
+[PASS] testSourceRateExpirySignatureAndMetadataDrift() (gas: 132898)
+[PASS] testTransactionGasPriceCapStopsAssetMovement() (gas: 101028)
+[PASS] testWithdrawalCannotSpendReservedFailedInbound() (gas: 806855)
+Suite result: ok. 18 passed; 0 failed; 0 skipped; finished in 40.36ms (141.07ms CPU time)
+
+Ran 1 test suite in 67.35ms (40.36ms CPU time): 18 tests passed, 0 failed, 0 skipped (18 total tests)

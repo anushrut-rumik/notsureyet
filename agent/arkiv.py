@@ -16,7 +16,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 from agent.store import Store
-from agent.task_state import TERMINAL, public_state
+from agent.task_state import TERMINAL, public_state, valid_stored_public_state
 from agent.vault import Vault
 
 
@@ -354,7 +354,7 @@ class ArkivStore(Store):
             ):
                 raise ArkivError("Invalid task checkpoint; recovery stopped")
             if data.get("version") == 2 and (
-                data.get("public_state") != public_state(data) or row.get("public_state") != data["public_state"]
+                not valid_stored_public_state(data) or row.get("public_state") != data["public_state"]
             ):
                 raise ArkivError("Public task state differs from encrypted checkpoint")
             if row.get("user_id") is not None and data["task"]["user_id"] != row["user_id"]:
@@ -514,6 +514,7 @@ class ArkivStore(Store):
         ]
         snapshot = {
             "version": 2,
+            "public_state_version": 2,
             "task": task,
             "events": self.events(task["user_id"], task_id=task_id, limit=100000),
             "messages": self.messages(f"task:{task_id}"),

@@ -149,7 +149,7 @@ a dedicated test line and run `uv run agent whatsapp`.
 /wallet create
 /balance
 /transfer 0.001 0xRECIPIENT_ADDRESS
-approve CODE_FROM_THE_REVIEW
+approve
 /tasks
 /receipt TRANSFER_ID
 ```
@@ -161,9 +161,39 @@ that same address needs **Rabdi tGLM** on Rabdi for application checkpoints.
 Connecting an address by text only enables watching; MetaMask connection uses a signed
 message, and each MetaMask payment still requires wallet confirmation. The model prepares a
 payment; only an explicit incoming user approval can admit signing. Transfers
-support native ETH on Ethereum Sepolia and CCIP-BnM from Ethereum Sepolia to Base Sepolia.
+support native ETH on Ethereum Sepolia, native ETH on Base Sepolia through MetaMask,
+and CCIP-BnM from Ethereum Sepolia to Base Sepolia.
 CCIP uses native ETH fees and reports completion only after finalized destination delivery.
 See [CCIP setup, deployment, funding and recovery](docs/CCIP.md) for exact commands.
+
+To fund the agent from an existing MetaMask balance, send a WhatsApp message such as
+"Send 0.005 ETH on Base Sepolia from my connected MetaMask to my agent wallet."
+Approve the exact review in chat, then open the signing link and confirm in MetaMask.
+Replying `approve` selects the latest payment review shown in that chat; `reject`
+cancels it. Explicit codes remain supported when selecting a particular review.
+An expired review is refreshed on the same payment and shown again before approval.
+The transfer stays on Base Sepolia. Ethereum Sepolia needs its own ETH funding.
+Base's execution gas estimate excludes its additional L1 data fee; MetaMask shows
+the full network fee before confirmation. The default per-payment limit is 0.01 ETH.
+
+Ask "Check ETH, CCIP-BnM and LINK in my MetaMask and agent wallets on both testnets"
+to read their balances. The `wallet_balances` chat tool reads Ethereum Sepolia and
+Base Sepolia directly, including token decimals and the observed block. It works
+before lending or CCIP deployment and needs no transaction approval. Unavailable
+reads are reported as unknown rather than zero.
+
+Same-chain CCIP-BnM transfers also work through MetaMask. For example, ask
+"Send 0.2 CCIP-BnM from my MetaMask on Base Sepolia to my agent wallet on Base Sepolia."
+Reply `approve`, then confirm the exact token transfer in MetaMask. This calls the
+token's `transfer` method directly, with ETH for gas and no bridge or allowance step.
+The default per-transfer CCIP-BnM limit is 1 token. Confirmation verifies the exact
+token Transfer event, including supported MetaMask smart-account execution on Base.
+
+Base Sepolia receipt checks also support MetaMask's sponsored, single native transfer
+through its DelegationManager and known smart-account implementation. The agent
+checks the exact sender, recipient, amount, successful execution event and canonical
+receipt. It recovers missing browser callbacks from indexed on-chain events without
+asking MetaMask to send again. Batches and other delegated execution modes are not supported.
 
 The task list queries Arkiv directly. Startup reconstructs task progress, evidence
 and payment hashes from encrypted immutable checkpoints before execution. SQLite
@@ -269,3 +299,14 @@ Part 3 lending execution, monitoring and recovery are documented in
 [docs/lending-part3.md](docs/lending-part3.md). Run `npm run lending:part3:test`
 for the focused local checks. Live testnet deposit acceptance remains pending;
 Part 2 wallets and setup are preserved.
+
+### WhatsApp lending — Part 4
+
+Run `npm run lending:part4:demo -- --scripted --evaluator test-harness` for the
+complete **mock** conversation/lifecycle, or use `--evaluator cre` for native local
+CRE arithmetic evaluation. `npm run lending:part4:test` runs focused verification.
+The [Part 4 runbook](docs/lending-part4.md) explains setup, authenticated approval,
+scheduling, recovery and the live agent-wallet broker. Automatic policy execution,
+funding/deposit and principal withdrawal are implemented and locally tested. The
+selected wallet still needs faucet funding and new compatible deployments; the
+full live WhatsApp/CCIP/withdrawal acceptance remains pending.

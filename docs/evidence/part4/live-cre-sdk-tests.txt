@@ -1,0 +1,17 @@
+bun test v1.3.2 (b131639c)
+
+tests/lending-part3-cre.test.ts:
+(pass) execution sends one authenticated raw report and remains submitted, not completed [58.17ms]
+(pass) fresh rate drift cancels without a report write [10.41ms]
+(pass) fresh fee drift cancels without a report write [5.30ms]
+(pass) fresh pending drift cancels without a report write [7.36ms]
+(pass) financial rejection policyCost sends zero source transactions [7.83ms]
+(pass) financial rejection depleted sends zero source transactions [6.66ms]
+(pass) uncertain missingHash cannot be treated as source confirmation [9.63ms]
+(pass) uncertain writeFailure cannot be treated as source confirmation [5.53ms]
+(pass) receiver-free target has no read, report or write capability [0.03ms]
+
+ 9 pass
+ 0 fail
+ 23 expect() calls
+Ran 9 tests across 1 file. [599.00ms]

@@ -36,7 +36,9 @@ export function verifySourceReceipt(record,receipt){
  const e=matches[0];
  requireFact(hash(e.messageId)&&same(e.destination,i.destination)&&same(e.token,i.token)&&e.amount===BigInt(i.amount)&&e.linkFee<=BigInt(i.maxLinkFee),'Source event differs from approved instruction');
  return {sourceHash:receipt.transactionHash,messageId:e.messageId,sourceBlock:String(receipt.blockNumber),
-  sourceBlockHash:receipt.blockHash,inTransitSince:new Date().toISOString(),failureReason:null};
+  sourceBlockHash:receipt.blockHash,actualLinkFeeUnits:String(e.linkFee),
+  sourceGasUsed:receipt.gasUsed===undefined?null:String(receipt.gasUsed),
+  sourceEffectiveGasPriceWei:receipt.effectiveGasPrice===undefined?null:String(receipt.effectiveGasPrice),inTransitSince:new Date().toISOString(),failureReason:null};
 }
 export function verifyMessage(record,message){
  const i=record.immutable.instruction,s=testnets.find(n=>n.chainId===i.sourceChainId),d=testnets.find(n=>n.chainId!==i.sourceChainId);

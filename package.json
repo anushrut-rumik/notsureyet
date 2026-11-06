@@ -29,7 +29,9 @@
     "lending:finish": "npm run lending:build --silent && node scripts/lending-finish-part2.mjs",
     "lending:part3:test": "node scripts/part3/check.mjs",
     "lending:part3": "npm run lending:build --silent && node scripts/part3/cli.mjs",
-    "lending:part3:sign": "npm run lending:build --silent && node scripts/part3/sign-server.mjs"
+    "lending:part3:sign": "npm run lending:build --silent && node scripts/part3/sign-server.mjs",
+    "lending:part4:test": "npm run lending:build && npm run lending:setup:build && uv run pytest tests/test_lending.py tests/test_lending_live.py -q && node --test tests/lending-part4.test.mjs tests/lending-live.test.mjs && node scripts/foundry.mjs forge test --evm-version cancun --match-path \"contracts/test/lending/part3/*.sol\"",
+    "lending:part4:demo": "npm run lending:build --silent && uv run python -m agent.lending_demo"
   },
   "dependencies": {
     "@arkiv-network/sdk": "1.0.1",

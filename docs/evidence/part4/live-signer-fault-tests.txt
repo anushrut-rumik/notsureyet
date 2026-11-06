@@ -1,0 +1,57 @@
+TAP version 13
+# (node:85250) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real signer journals funding, deposit and withdrawal, with no duplicate submission after lost responses
+ok 1 - real signer journals funding, deposit and withdrawal, with no duplicate submission after lost responses
+  ---
+  duration_ms: 127.976292
+  ...
+# Subtest: unfinalized receipt blocks every new funding and withdrawal transaction after restart
+ok 2 - unfinalized receipt blocks every new funding and withdrawal transaction after restart
+  ---
+  duration_ms: 23.421584
+  ...
+# Subtest: wrong sender receipt, reverted transaction and gas cap cannot report completion
+ok 3 - wrong sender receipt, reverted transaction and gas cap cannot report completion
+  ---
+  duration_ms: 30.088458
+  ...
+# Subtest: pause and expiry prevent investment while allowing principal withdrawal
+ok 4 - pause and expiry prevent investment while allowing principal withdrawal
+  ---
+  duration_ms: 19.852667
+  ...
+# Subtest: withdrawal returns only available liquidity and never claims the remainder was returned
+ok 5 - withdrawal returns only available liquidity and never claims the remainder was returned
+  ---
+  duration_ms: 26.207833
+  ...
+# Subtest: policy move is signed once, persists unknown before CRE, and pause never resubmits it
+ok 6 - policy move is signed once, persists unknown before CRE, and pause never resubmits it
+  ---
+  duration_ms: 32.487666
+  ...
+# Subtest: withdrawal settles the matching recovered source operation, ignoring older completed operations
+ok 7 - withdrawal settles the matching recovered source operation, ignoring older completed operations
+  ---
+  duration_ms: 29.770083
+  ...
+# Subtest: a scheduled hold still invokes CRE evaluation and never calls broadcast
+ok 8 - a scheduled hold still invokes CRE evaluation and never calls broadcast
+  ---
+  duration_ms: 9.780958
+  ...
+# Subtest: pause cancels an unsigned prepared operation without contacting a broadcaster
+ok 9 - pause cancels an unsigned prepared operation without contacting a broadcaster
+  ---
+  duration_ms: 9.287125
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 582.630667

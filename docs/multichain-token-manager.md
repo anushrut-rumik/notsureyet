@@ -1,6 +1,6 @@
 # Multichain token manager — persistent project reference
 
-Last updated: 2026-11-06. **Parts 1–2: shared rules and testnet/CRE build. Live Part 2 acceptance pending.** Maintain this
+Last updated: 2026-11-07. **Parts 1–4 have local implementations. The live four-part MVP remains incomplete.** Maintain this
 document in every later part, including actual commands, results and blockers.
 
 ## Product scope
@@ -24,7 +24,7 @@ The four parts remain:
    boundary, labelled arithmetic fixtures and local tests.
 2. Build implemented: hardened test contracts, observation adapter and read-only CRE workflow. All 11 owned deployment/funding transactions are confirmed. Finality, the final mock-rate change, and deployed-data move/hold acceptance remain pending; arithmetic move/hold cases pass in the actual simulator.
 3. Local integration implemented: CCIP execution, durable tracking and recovery. Live source-to-destination deposit acceptance remains incomplete; see [Part 3](lending-part3.md).
-4. Not started: WhatsApp lending integration and scheduling.
+4. Local WhatsApp lifecycle, exact-plan approval, private persistence and application scheduling implemented; native local CRE evaluation tested. Live automatic signing with the approved encrypted agent wallet, funding/deposit and principal withdrawal are implemented; deployment and live acceptance await faucet funding; see [Part 4](lending-part4.md).
 
 Part 1 did not broadcast transactions, create wallets, change existing wallet
 approval behavior, connect messaging, build a dashboard or deploy a workflow to
@@ -595,3 +595,51 @@ explicitly incomplete. The installed CCIP skill requires user-controlled signing
 and broadcasting; the full review/handoff and reproducible commands are in the
 Part 3 guide. Completion is not claimed until the destination lending position
 is verified.
+
+## Part 4 — live execution implemented; activation and acceptance pending
+
+See [the Part 4 runbook](lending-part4.md) for exact setup/start/test/stop commands,
+a sample conversation, tests and remaining limitations. `agent/lending.py` uses
+the existing agent registry, wallet binding, `Store` database and `Vault`
+encryption. `agent/lending_demo.py` uses the actual WhatsApp adapter against
+local transport mocks. No provider was replaced. No real messages or onchain
+transactions were sent.
+
+The application worker resumes persisted policies and pending mock operations.
+It serializes manual requests, evaluation, pause and withdrawal per user, rechecks
+the policy before submission, and keeps submitted transfers tracked after pause
+or expiry. Native evaluation invokes the existing arithmetic-only CRE workflow;
+this is local CRE execution with an application scheduler, not DON deployment.
+
+**Persistence decision:** private lending state is authoritative in the encrypted
+local SQLite table, not an Arkiv task entity. Arkiv remains authoritative for
+existing agent tasks. Do not treat the lending database as disposable cache.
+Remote/cache-loss recovery and multi-host coordination are not implemented.
+
+**Live implementation added:** `agent/lending_live.py` and `scripts/part4/live.mjs`
+connect the approved encrypted agent wallet to automatic funding/deposit and the
+existing CRE/CCIP execution flow. The execution contract now supports owner-only
+principal and reserve withdrawal after pending transfers are reconciled. Durable
+signed-transaction journals prevent duplicate sends after timeouts/restarts.
+The live preset accounts for finalized-chain observation delays. All scheduled
+comparisons invoke local CRE; permitted moves use the existing CRE report path.
+
+**Deployment/acceptance remains pending:** the 2026-11-07 read-only check found
+1 CCIP-BnM on Sepolia, 0.2 CCIP-BnM on Base, and test ETH and LINK on both chains.
+The new strategy contracts remain undeployed and lending mode is off. A user-run
+launcher prepares and deploys compatible new wallets and produces the server
+binding file. It preserves old MetaMask deployments. Real WhatsApp connection was
+checked successfully, and MetaMask funding was verified. New strategy deployment,
+source-to-destination delivery and principal withdrawal have not been verified
+live. Follow the exact activation sequence in the runbook. The trusted local
+Redis boundary is unchanged; no public webhook or production security claim is
+made. These remaining external steps cannot be represented as completed tests.
+
+Part 4 recorded verification: the broader Python run passed 203 tests with native
+CRE acceptance enabled (2 optional external tests skipped). A later focused run
+passed all 6 live-broker tests. The execution contract passed 18 tests; the
+combined receipt/tracking suite passed 21; the new signer/restart/funding/withdrawal
+suite passed 9; and the CRE SDK suite passed 9. TypeScript and Ruff passed.
+Read-only RPC checks verified both configured direct lanes and exact token
+mappings. These tests do not replace live delivery and withdrawal receipts.
+See [the evidence index](evidence/part4/test-results.json).

@@ -288,7 +288,7 @@ async def test_chat_commands_approve_only_matching_chat_and_never_from_model(con
         reply = await runtime.chat("u", "/wallet create")
         assert "Your agent wallet" in reply and "tGLM" in reply
         reply = await runtime.chat("u", "/transfer 0.001 0x" + "12" * 20)
-        assert "Reply exactly: approve" in reply
+        assert "Reply approve to continue" in reply
         payment = runtime.wallets.list("u")[0]
         assert not any(method.startswith("eth_send") for method, _ in chain.calls)
         assert "No payment" in await runtime.chat("other", "approve " + payment["approval_code"])

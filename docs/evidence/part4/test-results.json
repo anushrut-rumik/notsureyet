@@ -1,0 +1,127 @@
+{
+  "clientDate": "2026-11-07",
+  "scope": "Implemented live agent-wallet broker, local contract/RPC fault tests and native local CRE; external deployment and end-to-end acceptance pending",
+  "checks": [
+    {
+      "command": "LENDING_NATIVE_TEST=1 uv run pytest -q",
+      "result": "passed",
+      "passed": 200,
+      "skipped": 2,
+      "evidence": "python-regressions.txt"
+    },
+    {
+      "command": "node --test tests/lending-part3.test.mjs tests/lending-part4.test.mjs",
+      "result": "passed",
+      "passed": 21,
+      "evidence": "receipt-and-tracking-tests.txt"
+    },
+    {
+      "command": "npm test",
+      "result": "passed",
+      "note": "Existing JavaScript/financial-rules regressions ran successfully during implementation"
+    },
+    {
+      "command": "npm run lending:build",
+      "result": "passed",
+      "evidence": "typescript.txt"
+    },
+    {
+      "command": "uv run ruff check agent tests/test_lending.py",
+      "result": "passed",
+      "evidence": "lint.txt"
+    },
+    {
+      "command": "npm run lending:part4:demo -- --scripted --evaluator test-harness",
+      "result": "passed",
+      "evidence": "mock-conversation.txt"
+    },
+    {
+      "command": "npm run lending:part4:demo -- --scripted --evaluator cre",
+      "result": "passed",
+      "evidence": "native-cre-mock-conversation.txt"
+    },
+    {
+      "command": "uv run pytest tests/test_lending.py::test_expiry_during_transfer_tracks_and_withdraws_after_confirmation -q",
+      "result": "passed",
+      "evidence": "expiry-followup.txt"
+    },
+    {
+      "command": "node --test tests/lending-part4.test.mjs",
+      "result": "passed",
+      "passed": 4,
+      "evidence": "tracking-followup.txt"
+    },
+    {
+      "command": "LENDING_NATIVE_TEST=1 uv run pytest -q",
+      "result": "passed",
+      "passed": 203,
+      "skipped": 2,
+      "evidence": "live-python-regressions.txt",
+      "note": "Broad regression run before additional broker recovery/approval tests; the final focused six-test broker run covers those additions"
+    },
+    {
+      "command": "uv run pytest tests/test_lending_live.py -q",
+      "result": "passed",
+      "passed": 6,
+      "evidence": "live-broker-tests.txt"
+    },
+    {
+      "command": "node --test tests/lending-live.test.mjs",
+      "result": "passed",
+      "passed": 9,
+      "evidence": "live-signer-fault-tests.txt",
+      "scope": "Disposable test key; RPC/CRE broadcast mocked; actual signing and durable journals"
+    },
+    {
+      "command": "node --test tests/lending-part3.test.mjs tests/lending-part4.test.mjs",
+      "result": "passed",
+      "passed": 21,
+      "evidence": "live-receipt-tracking-tests.txt"
+    },
+    {
+      "command": "node scripts/foundry.mjs forge test --evm-version cancun --match-path 'contracts/test/lending/part3/*.sol' -vv",
+      "result": "passed",
+      "passed": 18,
+      "evidence": "live-contract-tests.txt"
+    },
+    {
+      "command": "node_modules/.bin/bun test tests/lending-part3-cre.test.ts",
+      "result": "passed",
+      "passed": 9,
+      "evidence": "live-cre-sdk-tests.txt"
+    },
+    {
+      "command": "node scripts/part3/cli.mjs route",
+      "result": "passed",
+      "scope": "Read-only live RPC lane/token mapping; not a transaction",
+      "evidence": "live-route-read-only.json"
+    },
+    {
+      "command": "uv run python -m agent.lending_setup",
+      "result": "passed",
+      "scope": "Read-only deployment review only; bytecode matches current Cancun artifacts"
+    }
+  ],
+  "externalAcceptance": {
+    "realWhatsAppProviderTested": false,
+    "realMessagesSent": false,
+    "testnetTransactionsSubmitted": false,
+    "liveCrossChainDepositVerified": false,
+    "livePrincipalWithdrawalImplemented": true,
+    "standingDelegatedSignerImplemented": true,
+    "signerDescription": "Existing encrypted agent wallet, expressly selected by user; no MetaMask delegation",
+    "realWhatsAppConnectionChecked": true,
+    "realWhatsAppHandsetFlowTested": false,
+    "compatibleDeploymentsCreated": false,
+    "liveFundingDepositVerified": false,
+    "livePrincipalWithdrawalVerified": false
+  },
+  "limitations": [
+    "Faucet funding still required: selected owner has no native gas or LINK on either chain and no BnM on Base",
+    "New compatible wallet deployment, actual WhatsApp approval and full live receipt acceptance remain pending",
+    "Current trusted local Redis intake is not cryptographically signed per-event and is not a public webhook deployment",
+    "Private lending state requires original database and vault; multi-host and cache-loss recovery remain outside this single-host MVP",
+    "Unknown direct transactions, reverted setup transactions or protocol-level CCIP failures can require explicit operator/existing-message recovery; no blind resend",
+    "Mock pools accrue no interest; valuations and APR scenarios are fictional; local CRE application scheduling is not a DON deployment"
+  ]
+}

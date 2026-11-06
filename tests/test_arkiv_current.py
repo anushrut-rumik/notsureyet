@@ -226,3 +226,79 @@ def test_capabilities_share_one_task_lifecycle(config, capability, tool):
         assert store.progress("u", task["id"])["public_state"]["capability"] == capability
     finally:
         store.close()
+
+
+@pytest.mark.parametrize("projection_version", [1, 2])
+def test_unversioned_base_payment_checkpoint_recovers_without_losing_receipt(config, projection_version):
+    from agent.task_state import public_state
+
+    bridge = MemoryArkiv()
+    store = ArkivStore(config.db_path, config, bridge)
+    try:
+        store.recover()
+        task = store.create_task("u", "Existing Base payment", "Track existing payment", "Verified receipt")
+        payment = {
+            "id": "a" * 32,
+            "user_id": "u",
+            "task_id": task["id"],
+            "chain_id": 84532,
+            "status": "confirmed",
+            "tx_hash": "0x" + "ab" * 32,
+        }
+        store.db.execute("INSERT INTO transfers VALUES(?,?,?,?)", (payment["id"], "u", task["id"], json.dumps(payment)))
+        store.db.commit()
+        store.flush_task(task["id"])
+        row = bridge.rows[-1]
+        context = f"{bridge.instance}:{task['id']}:{row['revision']}"
+        snapshot = store.vault.open(row["encrypted"], context)
+        snapshot.pop("public_state_version")
+        snapshot["public_state"] = public_state(snapshot, version=projection_version)
+        row["public_state"] = snapshot["public_state"]
+        row["encrypted"] = store.vault.seal(snapshot, context)
+        original_ciphertext = row["encrypted"]
+        store.recover()
+        assert store.available
+        saved = json.loads(store.db.execute("SELECT data FROM transfers WHERE id=?", (payment["id"],)).fetchone()[0])
+        assert saved["status"] == "confirmed" and saved["tx_hash"] == payment["tx_hash"]
+        assert store.progress("u", task["id"])["public_state"]["source_network"] == "base_sepolia"
+        assert row["encrypted"] == original_ciphertext  # Existing checkpoints remain immutable.
+        assert store._snapshot(task["id"])["public_state_version"] == 2
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize(
+    "change", ["unknown_version", "wrong_projection", "wrong_encrypted_metadata", "wrong_public_metadata"]
+)
+def test_versioned_public_projection_stays_strict(config, change):
+    from agent.task_state import public_state
+
+    bridge = MemoryArkiv()
+    store = ArkivStore(config.db_path, config, bridge)
+    try:
+        store.recover()
+        task = store.create_task("u", "Base", "Track", "Receipt")
+        payment = {"id": "b" * 32, "chain_id": 84532, "status": "submitted", "tx_hash": "0x" + "ab" * 32}
+        store.db.execute("INSERT INTO transfers VALUES(?,?,?,?)", (payment["id"], "u", task["id"], json.dumps(payment)))
+        store.db.commit()
+        store.flush_task(task["id"])
+        row = bridge.rows[-1]
+        context = f"{bridge.instance}:{task['id']}:{row['revision']}"
+        snapshot = store.vault.open(row["encrypted"], context)
+        assert snapshot["public_state_version"] == 2
+        if change == "unknown_version":
+            snapshot["public_state_version"] = 99
+        if change == "wrong_projection":
+            snapshot["public_state"] = public_state(snapshot, version=1)
+        if change == "wrong_encrypted_metadata":
+            snapshot["public_state"]["source_network"] = "mainnet"
+        row["public_state"] = dict(snapshot["public_state"])
+        if change == "wrong_public_metadata":
+            row["public_state"]["source_network"] = "mainnet"
+        row["encrypted"] = store.vault.seal(snapshot, context)
+        with pytest.raises(ArkivError, match="differs"):
+            store.recover()
+        assert not store.available
+        assert store.db.execute("SELECT count(*) FROM transfers").fetchone()[0] == 1
+    finally:
+        store.close()

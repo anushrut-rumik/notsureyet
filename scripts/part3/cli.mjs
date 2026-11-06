@@ -1,6 +1,7 @@
 // Public artifacts and read-only monitoring. No signing key, wallet client, RPC send or broadcast.
 import {readFile,writeFile,mkdir,chmod} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
+import {pathToFileURL} from 'node:url';
 import {createPublicClient,http,verifyTypedData,parseAbi,keccak256,toBytes} from 'viem';
 import {testnets} from '../../.local/lending-build/testnets.js';
 import {payloadSchema,readAbi,validateObservedInput,rayToBps} from '../../.local/lending-build/observation.js';
@@ -33,7 +34,7 @@ export async function verifyRoute(){
   return {chainId:n.chainId,sourceSelector:n.selector,destinationSelector:other.selector,router:n.router,token:n.token,remoteToken:other.token,onRamp,version,tokenPool,checkedAt:new Date().toISOString()};
  }));
 }
-async function refresh(observation){
+export async function refresh(observation){
  const original=payloadSchema.parse(observation);
  const route=await verifyRoute(),p=structuredClone(original),run=p.run,s=run.snapshot;
  check(run.operationId,'An explicit candidate operation ID is required');
@@ -194,4 +195,4 @@ async function main(){
   else if(command==='status')console.log(JSON.stringify(journal.list(),null,2));else throw Error('Unknown command');
  }finally{journal.close();}
 }
-main().catch(e=>{console.error(e.shortMessage||e.message);process.exitCode=1;});
+if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).href) main().catch(e=>{console.error(e.shortMessage||e.message);process.exitCode=1;});

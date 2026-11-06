@@ -130,7 +130,10 @@ class MobileWallet:
             "payment": {
                 **{
                     k: payment[k]
-                    for k in ("kind", "phase", "destination", "sender_contract", "ccip_fee_eth", "ccip_fee_cap_eth")
+                    for k in (
+                        "kind", "phase", "destination", "sender_contract", "ccip_fee_eth", "ccip_fee_cap_eth",
+                        "token_address", "fee_asset",
+                    )
                     if k in payment
                 },
                 **{
@@ -265,12 +268,23 @@ class MobileWallet:
             if native_rabdi:
                 await self.wallets.rabdi.validate(payment)
             else:
-                await self.wallets.network()
-                nonce = int(await self.wallets.rpc("eth_getTransactionCount", [payment["sender"], "pending"]), 16)
+                await self.wallets.network(payment["chain_id"])
+                nonce = int(
+                    await self.wallets.rpc_for(payment["chain_id"])(
+                        "eth_getTransactionCount", [payment["sender"], "pending"]
+                    ),
+                    16,
+                )
                 if nonce != int(payment["transaction"]["nonce"], 16):
                     raise ValueError("The wallet nonce changed. " + refresh_hint)
             transaction = payment["transaction"]
-            rpc = self.wallets.rabdi.rpc if native_rabdi else self.wallets.rpc
+            if payment.get("kind") == "erc20_transfer":
+                from agent.token_transfer import preflight
+
+                await preflight(
+                    self.wallets, data["user_id"], payment["chain_id"], payment["recipient"], payment["amount"]
+                )
+            rpc = self.wallets.rabdi.rpc if native_rabdi else self.wallets.rpc_for(payment["chain_id"])
             if int(await rpc("eth_gasPrice", []), 16) > int(transaction["gasPrice"], 16):
                 raise ValueError("The network fee changed. " + refresh_hint)
             if int(await rpc("eth_estimateGas", [transaction, "latest"]), 16) > int(transaction["gas"], 16):
@@ -322,12 +336,18 @@ class MobileWallet:
             if payment["tx_hash"].lower() != tx_hash.lower():
                 raise ValueError("This payment already has a different transaction reference")
             return {"saved": True, "tx_hash": payment["tx_hash"]}
-        await self.wallets.network()
-        tx = await self.wallets.rpc("eth_getTransactionByHash", [tx_hash])
+        await self.wallets.network(payment["chain_id"])
+        tx = await self.wallets.rpc_for(payment["chain_id"])("eth_getTransactionByHash", [tx_hash])
         if tx is None:
             raise ValueError("The network has not indexed this hash yet. Save the same hash again; do not send again.")
-        if tx.get("hash", "").lower() != tx_hash.lower() or not self.wallets.matches(payment, tx):
+        if tx.get("hash", "").lower() != tx_hash.lower():
             raise ValueError("This transaction does not match the approved payment")
+        if not self.wallets.matches(payment, tx):
+            from agent.metamask_receipts import verify
+
+            if not await verify(self.wallets, payment, tx):
+                raise ValueError("This transaction does not match the approved payment or is not indexed yet")
+            payment["receipt_kind"] = "metamask_delegation"
         payment.update(tx_hash=tx_hash, status="submitted")
         self.wallets.save(payment, checkpoint=False)
         self.wallets.store.notice(

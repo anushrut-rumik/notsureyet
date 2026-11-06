@@ -155,6 +155,22 @@ contract ExecutionStrategyWallet is EIP712, ReentrancyGuard, CCIPReceiver {
         asset.safeTransfer(owner, amount);
     }
 
+    event OwnerWithdrawal(uint256 principalAmount, uint256 idleAmount, address recipient);
+
+    // Explicit owner exit. Routine rebalances still preserve the reserve.
+    // In-flight sends and reserved inbound deposits must be reconciled first.
+    function withdrawToOwner(uint256 principalAmount, uint256 idleAmount) external onlyOwner nonReentrant {
+        if (activeOperation != 0 || reservedInbound != 0 || (principalAmount == 0 && idleAmount == 0)) {
+            revert InvalidInstruction();
+        }
+        if (principalAmount > pool.balanceOf(address(this)) || idleAmount > asset.balanceOf(address(this))) {
+            revert InvalidInstruction();
+        }
+        if (principalAmount != 0) pool.withdraw(principalAmount, owner);
+        if (idleAmount != 0) asset.safeTransfer(owner, idleAmount);
+        emit OwnerWithdrawal(principalAmount, idleAmount, owner);
+    }
+
     function instructionDigest(Instruction memory i) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(INSTRUCTION_TYPEHASH, i)));
     }

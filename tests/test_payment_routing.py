@@ -108,7 +108,7 @@ async def test_missing_ccip_deployment_is_reported_even_with_an_unrelated_pendin
     "asset,source,destination",
     [
         ("ETH", "ethereum_sepolia", "base_sepolia"),
-        ("CCIP-BnM", "base_sepolia", "base_sepolia"),
+        ("CCIP-BnM", "base_sepolia", "ethereum_sepolia"),
         ("tGLM", "ethereum_sepolia", "arkiv_rabdi"),
     ],
 )

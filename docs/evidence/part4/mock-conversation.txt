@@ -1,0 +1,82 @@
+MOCK TRANSPORT + MOCK EXECUTION. No provider, handset, onchain deposit or CCIP message.
+Evaluator: test-harness. Fixture explicitly funded with 1000 test tokens and 10 fee units per chain.
+you> Manage my test tokens for 30 days. Keep some available and only move the rest when the expected extra interest covers the fees.
+ira> TEST PRESET — CCIP-BnM only.
+MOCK balances, fees and execution; no real transactions.
+Plan 964efae8a8c04190bbafe27d5350d08d version 1 · review 0fb016540594
+Observed available: 1000 CCIP-BnM on Ethereum Sepolia.
+Deposit: 800; keep 200 idle.
+Approved markets: mock-lending-sepolia (Ethereum Sepolia, 11155111) and mock-lending-base-sepolia (Base Sepolia, 84532).
+Horizon: 30 days, ending 2026-12-06T18:45:07+00:00. Check every 3600 seconds.
+Fee cap per move: 3 SIM_USD; minimum extra interest after fees: 1 SIM_USD.
+Maximum movable: 800 CCIP-BnM; cooldown 86400 seconds; observation age limit 300 seconds, skew 60 seconds.
+SIM_USD pricing is fictional. Rates can change. Projected returns assume unchanged rates and zero transfer downtime; they are not earned profit. The mock pools accrue no interest.
+Stop new investments on pause, expiry, missing/stale data, wallet changes, unavailable dependencies, insufficient reserves/fees or any pending transfer. Track submitted transfers even after stopping. At expiry the position stays deposited until you request withdrawal. Withdrawals return on their current testnet to your verified wallet; no bank cash-out. Routine permitted moves need no new chat approval.
+Reply exactly: approve lending 964efae8a8c04190bbafe27d5350d08d 1 0fb016540594
+you> approve lending 964efae8a8c04190bbafe27d5350d08d 1 0fb016540594
+ira> Exact plan approved. No funds were created or moved. Use /lending start to verify funding and deposit.
+you> /lending start
+ira> MOCK: Deposit submitted; receipt not yet confirmed.
+ira> {
+  "operation": {
+    "id": "a5ebc11eb96b49a2be95d3fcc62a2dc5",
+    "kind": "deposit",
+    "state": "submitted",
+    "amountUnits": "800000000000000000000",
+    "sourceChain": "11155111",
+    "destinationChain": "84532",
+    "planId": "964efae8a8c04190bbafe27d5350d08d",
+    "version": "1",
+    "createdAt": 1793990709,
+    "submittedAt": 1793990709,
+    "confirmedAt": null,
+    "receipt": null
+  },
+  "message": "MOCK initial deposit submitted; not confirmed yet."
+}
+ira> MOCK: Deposit confirmed on Ethereum Sepolia. No interest has accrued.
+ira> MOCK: No move: estimated costs exceed the extra interest, or the destination rate is no better.
+fixture> Changing the destination mock rate from 7% to 20%; same approved limits.
+ira> MOCK: Transfer submitted.
+ira> MOCK: Still in transit. Destination deposit is not confirmed.
+ira> MOCK: Deposit confirmed on Base Sepolia. No interest has accrued.
+you> /lending status
+ira> MOCK lending: active
+Wallet: 0x0d20AA22224196FE712051D9149e41d5fC9Da095
+Plan 964efae8a8c04190bbafe27d5350d08d v1; fixed deadline 2026-12-06T18:45:07+00:00
+Deposited principal: 800 CCIP-BnM on Base Sepolia
+Ethereum Sepolia idle: 200 CCIP-BnM; mock fee balance: 8 SIM_FEE_ASSET; returned: 0 CCIP-BnM
+Base Sepolia idle: 0 CCIP-BnM; mock fee balance: 10 SIM_FEE_ASSET; returned: 0 CCIP-BnM
+Tokens in transit: 0 CCIP-BnM
+Last comparison: projected extra interest 10.520527 SIM_USD; incremental costs 2 SIM_USD; projected net improvement 8.520527 SIM_USD.
+Earned profit: 0. Mock pools accrue no interest. Projections are not receipts.
+Operation a5ebc11eb96b49a2be95d3fcc62a2dc5: deposit — verified_deposit
+Operation ec778f0027f54c4e903ca38552f32c8e: rebalance — verified_deposit
+you> /lending pause
+ira> {
+  "status": "Paused. Prepared operations cancelled. Submitted transfers remain monitored."
+}
+you> /lending withdraw
+ira> MOCK: Withdraw submitted; receipt not yet confirmed.
+ira> {
+  "status": "Withdrawal requested. Pending transfers are tracked first; success requires a receipt.",
+  "recipient": "0x0d20AA22224196FE712051D9149e41d5fC9Da095",
+  "networks": {
+    "11155111": "Ethereum Sepolia",
+    "84532": "Base Sepolia"
+  }
+}
+ira> MOCK: Withdrawal receipt confirmed on the listed current testnets.
+you> /lending status
+ira> MOCK lending: withdrawn
+Wallet: 0x0d20AA22224196FE712051D9149e41d5fC9Da095
+Plan 964efae8a8c04190bbafe27d5350d08d v1; fixed deadline 2026-12-06T18:45:07+00:00
+Deposited principal: 0 CCIP-BnM on Base Sepolia
+Ethereum Sepolia idle: 0 CCIP-BnM; mock fee balance: 8 SIM_FEE_ASSET; returned: 200 CCIP-BnM
+Base Sepolia idle: 0 CCIP-BnM; mock fee balance: 10 SIM_FEE_ASSET; returned: 800 CCIP-BnM
+Tokens in transit: 0 CCIP-BnM
+Last comparison: projected extra interest 10.520527 SIM_USD; incremental costs 2 SIM_USD; projected net improvement 8.520527 SIM_USD.
+Earned profit: 0. Mock pools accrue no interest. Projections are not receipts.
+Operation a5ebc11eb96b49a2be95d3fcc62a2dc5: deposit — verified_deposit
+Operation ec778f0027f54c4e903ca38552f32c8e: rebalance — verified_deposit
+Operation bc57646f338f4c1fa4866cfa01afb61e: withdraw — confirmed

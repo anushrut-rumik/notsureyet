@@ -9,7 +9,7 @@ from agent.arkiv import ArkivStore
 from agent.ccip_simulation import mode as ccip_mode
 from agent.chat_commands import ChatCommands
 from agent.store import Store
-from agent.wallet import SEPOLIA, address, amount_wei
+from agent.wallet import BASE_SEPOLIA, SEPOLIA, address, amount_wei
 
 Network = Literal["ethereum_sepolia", "base_sepolia", "arkiv_rabdi"]
 Asset = Literal["ETH", "tGLM", "CCIP-BnM"]
@@ -19,7 +19,19 @@ NETWORK_NAMES = {"ethereum_sepolia": "Ethereum Sepolia", "base_sepolia": "Base S
 def capabilities(wallets):
     simulation = ccip_mode(wallets.config) == "simulation"
     return {
-        "native": ["ETH: Ethereum Sepolia -> Ethereum Sepolia", "tGLM: Arkiv Rabdi -> Arkiv Rabdi"],
+        "balance_reads": {
+            "tool": "wallet_balances",
+            "assets": ["ETH", "CCIP-BnM", "LINK"],
+            "networks": ["ethereum_sepolia", "base_sepolia"],
+            "wallets": ["connected MetaMask", "agent", "public address"],
+            "requires_deployment_or_approval": False,
+        },
+        "native": [
+            "ETH: Ethereum Sepolia -> Ethereum Sepolia",
+            "ETH: Base Sepolia -> Base Sepolia (MetaMask)",
+            "tGLM: Arkiv Rabdi -> Arkiv Rabdi",
+        ],
+        "same_chain_tokens": ["CCIP-BnM within Ethereum Sepolia or Base Sepolia through MetaMask"],
         "ccip": {
             "mode": "simulation" if simulation else "testnet",
             "asset": "CCIP-BnM",
@@ -43,21 +55,28 @@ async def prepare_request(
 ):
     routes = {
         ("ETH", "ethereum_sepolia", "ethereum_sepolia"): SEPOLIA,
+        ("ETH", "base_sepolia", "base_sepolia"): BASE_SEPOLIA,
         ("tGLM", "arkiv_rabdi", "arkiv_rabdi"): 7794095,
         ("CCIP-BnM", "ethereum_sepolia", "base_sepolia"): SEPOLIA,
+        ("CCIP-BnM", "ethereum_sepolia", "ethereum_sepolia"): SEPOLIA,
+        ("CCIP-BnM", "base_sepolia", "base_sepolia"): BASE_SEPOLIA,
     }
     route = (asset, source_network, destination_network)
     if route not in routes:
         raise ValueError(
-            "Unsupported payment route. Supported: ETH within Ethereum Sepolia, tGLM within Arkiv Rabdi, "
-            "or CCIP-BnM from Ethereum Sepolia to Base Sepolia. Specify the intended source and destination."
+            "Unsupported payment route. Supported: ETH within Ethereum Sepolia or Base Sepolia, "
+            "tGLM within Arkiv Rabdi, "
+            "CCIP-BnM within either testnet, or CCIP-BnM from Ethereum Sepolia to Base Sepolia. "
+            "Specify the intended source and destination."
         )
     from agent.ccip import token_units
 
     units = token_units(amount) if asset == "CCIP-BnM" else amount_wei(amount, asset=asset)
     wallet = wallets.get(user)
     recipient = address(recipient) if recipient else wallets.agent_wallet(user)["address"]
-    if asset == "CCIP-BnM" and ccip_mode(wallets.config) == "simulation":
+    cross_chain = asset == "CCIP-BnM" and source_network != destination_network
+    same_chain_token = asset == "CCIP-BnM" and not cross_chain
+    if cross_chain and ccip_mode(wallets.config) == "simulation":
         from agent.ccip_simulation import simulate
 
         if task_id:
@@ -66,8 +85,12 @@ async def prepare_request(
     if wallet["kind"] not in {"metamask", "local"}:
         raise ValueError("Connect a signing wallet before preparing a payment")
     store = wallets.store
-    if not isinstance(store, ArkivStore) or not store.available:
-        raise ValueError("Arkiv task storage must be configured and recovered before preparing a payment")
+    if not isinstance(store, ArkivStore):
+        raise ValueError("Arkiv task storage must be configured before preparing a payment")
+    if not store.available:
+        raise ValueError(
+            "Task storage recovery has not completed; payment preparation is paused until recovery succeeds"
+        )
     for existing in wallets.list(user):
         if task_id and existing["task_id"] != task_id:
             continue
@@ -76,6 +99,7 @@ async def prepare_request(
             and existing["recipient"] == recipient
             and existing["asset"] == asset
             and existing["chain_id"] == routes[route]
+            and (asset != "CCIP-BnM" or (existing.get("kind") == "erc20_transfer") == same_chain_token)
             and int(existing.get("amount_units", existing["value_wei"])) == units
         )
         if matches:
@@ -91,18 +115,24 @@ async def prepare_request(
         elif task_id:
             raise ValueError("This task already has a different payment intent; inspect it instead of replacing it")
     # An existing transfer remains trackable even when configuration changes after admission.
-    if asset == "CCIP-BnM":
+    if cross_chain:
         wallets.ccip.sender()
     # Validate balance, route and fee configuration before even creating a local draft task.
-    if asset == "CCIP-BnM":
+    if cross_chain:
         quote = await wallets.ccip.quote(user, recipient, amount)
         if int(quote["token_balance_units"]) < units:
             raise ValueError("Insufficient CCIP-BnM on Ethereum Sepolia")
+    elif same_chain_token:
+        from agent.token_transfer import preflight
+
+        await preflight(wallets, user, routes[route], recipient, amount)
     else:
         limit = "AGENT_MAX_TRANSFER_ETH" if asset == "ETH" else "AGENT_MAX_TRANSFER_TGLM"
         if units > amount_wei(wallets.config.env.get(limit) or "0.01", asset=asset):
             raise ValueError("Transfer exceeds " + limit)
-        balance = await (wallets.balance(user) if asset == "ETH" else wallets.rabdi.balance(user))
+        balance = await (
+            wallets.balance(user, chain_id=routes[route]) if asset == "ETH" else wallets.rabdi.balance(user)
+        )
         if int(balance["balance_wei"]) <= units:
             raise ValueError(f"Insufficient {asset} for the requested amount and network fee")
     request = {
@@ -136,12 +166,14 @@ async def prepare_request(
             wake_at=None,
             notes="Preparing an unsigned payment review; no payment or storage signature requested",
         )
-        if asset == "CCIP-BnM":
+        if cross_chain:
             payment = await wallets.ccip.prepare(user, task_id, recipient, amount)
+        elif same_chain_token:
+            payment = await wallets.prepare(user, task_id, recipient, amount, chain_id=routes[route], asset=asset)
         elif asset == "tGLM":
             payment = await wallets.rabdi.prepare(user, task_id, recipient, amount)
         else:
-            payment = await wallets.prepare(user, task_id, recipient, amount)
+            payment = await wallets.prepare(user, task_id, recipient, amount, chain_id=routes[route])
         payment = wallets.load(user, payment["id"])
         payment["payment_request"] = request
         wallets.save(payment)
@@ -171,8 +203,16 @@ async def refresh_review(wallets, user, transfer_id):
             payment = wallets.load(user, transfer_id)
             if payment.get("tx_hash") or payment.get("signing_requested_at"):
                 raise ValueError("This payment was already admitted; inspect its saved transaction")
-            rpc = wallets.rabdi.rpc if payment.get("kind") == "rabdi_native" else wallets.rpc
-            await (wallets.rabdi.network() if payment.get("kind") == "rabdi_native" else wallets.network())
+            if payment.get("kind") == "erc20_transfer":
+                from agent.token_transfer import preflight
+
+                await preflight(wallets, user, payment["chain_id"], payment["recipient"], payment["amount"])
+            rpc = wallets.rabdi.rpc if payment.get("kind") == "rabdi_native" else wallets.rpc_for(payment["chain_id"])
+            await (
+                wallets.rabdi.network()
+                if payment.get("kind") == "rabdi_native"
+                else wallets.network(payment["chain_id"])
+            )
             tx = {k: v for k, v in payment["transaction"].items() if k not in {"gas", "gasPrice", "nonce"}}
             gas = (int(await rpc("eth_estimateGas", [tx, "latest"]), 16) * 12 + 9) // 10
             price = int(await rpc("eth_gasPrice", []), 16)

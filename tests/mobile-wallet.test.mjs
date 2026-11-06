@@ -13,7 +13,7 @@ function boot(accounts=[wallet],options={}){
   calls.push(request);
   if(request.method==='wallet_switchEthereumChain'){chain=request.params[0].chainId;return null;}
   if(request.method==='wallet_requestPermissions'){
-   assert.equal(chain,options.kind==='arkiv'?'0x76edaf':'0xaa36a7','select the signing chain before refreshing account access');
+   assert.equal(chain,options.kind==='arkiv'?'0x76edaf':options.kind==='base'?'0x14a34':'0xaa36a7','select the signing chain before refreshing account access');
    if(options.permissionError)throw options.permissionError;
    freshPermission=true;return [{parentCapability:'eth_accounts'}];
   }
@@ -28,21 +28,24 @@ function boot(accounts=[wallet],options={}){
   if(request.method==='eth_sendTransaction')return '0x'+'ab'.repeat(32);
   throw Error('Unexpected RPC '+request.method);
  }};
- const context={document,window:{ethereum},location:{pathname:'/connect/test',host:'wallet.example'},TextEncoder,
-  localStorage:{getItem(){return null;},setItem(){},removeItem(){}},
+ const listeners={};
+ const context={document,window:{ethereum,addEventListener(name,fn){listeners[name]=fn;}},location:{pathname:'/connect/test',host:'wallet.example',reload(){calls.push({method:'reload'});}},TextEncoder,
+  localStorage:{getItem(){return options.savedHash??null;},setItem(){},removeItem(){}},
   async fetch(url,fetchOptions){const body=fetchOptions.body?JSON.parse(fetchOptions.body):null;api.push([url,body]);
    let data=options.kind==='arkiv'?{kind:'arkiv',claimed:false,payment:{sender:wallet,recipient:'0x'+'44'.repeat(20),amount:'0',asset:'tGLM',chain_id:7794095,max_fee_wei:'1000000000000000',status:'external_prepared'}}:{kind:'connect',completed:false,expected_address:wallet};
+   if(options.kind==='base')data={kind:'payment',claimed:false,payment:{sender:wallet,recipient:'0x'+'44'.repeat(20),amount:'0.005',asset:'ETH',chain_id:84532,max_fee_wei:'1000000',status:'awaiting_signature'}};
    if(options.kind==='ccip')data={kind:'payment',claimed:false,payment:{kind:'ccip',phase:'send',sender:wallet,recipient:'0x'+'12'.repeat(20),amount:'1',asset:'CCIP-BnM',chain_id:11155111,max_fee_wei:'100000000000000',status:'awaiting_signature',destination:'Base Sepolia',sender_contract:'0x'+'45'.repeat(20),ccip_fee_eth:'0.0001',ccip_fee_cap_eth:'0.00011'}};
    if(options.kind==='ccip_deployment')data={kind:'payment',claimed:false,payment:{kind:'ccip_deployment',sender:wallet,recipient:'0x'+'12'.repeat(20),amount:'0',asset:'ETH',chain_id:11155111,max_fee_wei:'100000000000000',status:'awaiting_signature'}};
+   if(options.state)data=options.state;
    if(url.endsWith('/challenge'))data={message:'Connect this wallet to Ira',address:wallet};
    else if(url.endsWith('/connect'))data={connected:true,address:wallet};
    else if(url.endsWith('/progress'))data={recorded:true};
-   else if(url.endsWith('/claim'))data={transaction:{from:wallet,...(options.kind==='ccip_deployment'?{}:{to:'0x'+'44'.repeat(20)}),chainId:['ccip','ccip_deployment'].includes(options.kind)?'0xaa36a7':'0x76edaf',data:'0x1234'}};
+   else if(url.endsWith('/claim'))data={transaction:{from:wallet,...(options.kind==='ccip_deployment'?{}:{to:'0x'+'44'.repeat(20)}),chainId:options.kind==='base'?'0x14a34':['ccip','ccip_deployment'].includes(options.kind)?'0xaa36a7':'0x76edaf',data:'0x1234'}};
    else if(url.endsWith('/result'))data={saved:true};
    return {ok:true,json:async()=>data};
   }};
  vm.createContext(context);vm.runInContext(readFileSync('agent/wallet_web/mobile-wallet.js','utf8'),context);
- return {context,nodes,calls,api};
+ return {context,nodes,calls,api,listeners};
 }
 test('mobile connection refreshes permissions on Sepolia before signing the exact message',async()=>{
  const app=boot();
@@ -129,4 +132,42 @@ test('CCIP review shows amount, recipient, destination and native fees before th
  const sends=app.calls.filter(c=>c.method==='eth_sendTransaction');
  assert.equal(sends.length,1);assert.equal(sends[0].params[0].data,'0x1234');
  assert.equal(sends[0].params[0].chainId,'0xaa36a7');
+});
+
+test('Base funding selects Base Sepolia before permissions and sends the approved chain transaction',async()=>{
+ const app=boot([wallet],{kind:'base'});await vm.runInContext('init()',app.context);
+ await app.nodes.get('action').onclick();
+ const sends=app.calls.filter(c=>c.method==='eth_sendTransaction');
+ assert.equal(sends.length,1);assert.equal(sends[0].params[0].chainId,'0x14a34');
+ assert.ok(app.calls.some(c=>c.method==='wallet_switchEthereumChain'&&c.params[0].chainId==='0x14a34'));
+ assert.ok(app.api.some(([url])=>url.endsWith('/result')));
+});
+
+test('a confirmed old ETH page is an identified receipt with no send or recovery action',async()=>{
+ const app=boot([wallet],{savedHash:'0x'+'ab'.repeat(32),state:{kind:'payment',claimed:true,payment:{id:'old-eth-payment',amount:'0.005',asset:'ETH',sender:wallet,recipient:wallet,chain_id:84532,max_fee_wei:'1',status:'confirmed',tx_hash:'0x'+'ab'.repeat(32)}}});
+ await vm.runInContext('init()',app.context);
+ assert.equal(app.nodes.get('title').textContent,'Payment confirmed');
+ assert.match(app.nodes.get('intro').textContent,/receipt for 0.005 ETH/);
+ assert.match(app.nodes.get('intro').textContent,/latest link in WhatsApp/);
+ assert.equal(app.nodes.get('action').hidden,true);
+ assert.equal(app.nodes.get('recover').hidden,true);
+ assert.equal(app.nodes.get('open').hidden,true);
+ assert.match(app.context.document.title,/Receipt: 0.005 ETH/);
+ const details=app.nodes.get('details').children.flatMap(dl=>dl.children.map(n=>n.textContent)).join(' ');
+ assert.match(details,/Payment ID old-eth-payment/);
+ assert.equal(app.calls.length,0);
+ app.listeners.pageshow({persisted:true});
+ assert.equal(app.calls.at(-1).method,'reload');
+});
+
+test('new token review displays its exact amount, identity and contract before signing',async()=>{
+ const contract='0x88A2d74F47a237a62e7A51cdDa67270CE381555e';
+ const app=boot([wallet],{kind:'base',state:{kind:'payment',claimed:false,payment:{id:'new-token-payment',kind:'erc20_transfer',amount:'0.2',asset:'CCIP-BnM',sender:wallet,recipient:wallet,chain_id:84532,max_fee_wei:'373560000000',status:'awaiting_signature',token_address:contract}}});
+ await vm.runInContext('init()',app.context);
+ const details=app.nodes.get('details').children.flatMap(dl=>dl.children.map(n=>n.textContent)).join(' ');
+ for(const value of ['0.2 CCIP-BnM','new-token-payment',contract,'Same-chain token transfer','Base Sepolia'])assert.ok(details.includes(value),details);
+ assert.ok(!details.includes('0.005 ETH'));
+ assert.match(app.nodes.get('intro').textContent,/Ira's payment review/);
+ assert.equal(app.nodes.get('action').hidden,false);
+ assert.equal(app.calls.length,0);
 });

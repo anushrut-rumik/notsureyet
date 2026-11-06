@@ -28,6 +28,11 @@ async function sepolia(p){
  catch(e){if(e.code!==4902)throw e;await p.request({method:'wallet_addEthereumChain',params:[{chainId:'0xaa36a7',chainName:'Ethereum Sepolia',nativeCurrency:{name:'Sepolia Ether',symbol:'ETH',decimals:18},rpcUrls:['https://ethereum-sepolia-rpc.publicnode.com'],blockExplorerUrls:['https://sepolia.etherscan.io']}]});}
  if((await p.request({method:'eth_chainId'})).toLowerCase()!=='0xaa36a7')throw Error('Select Ethereum Sepolia in MetaMask.');
 }
+async function baseSepolia(p){
+ try{await p.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x14a34'}]});}
+ catch(e){if(e.code!==4902)throw e;await p.request({method:'wallet_addEthereumChain',params:[{chainId:'0x14a34',chainName:'Base Sepolia',nativeCurrency:{name:'Sepolia Ether',symbol:'ETH',decimals:18},rpcUrls:['https://base-sepolia-rpc.publicnode.com'],blockExplorerUrls:['https://sepolia.basescan.org']}]});}
+ if((await p.request({method:'eth_chainId'})).toLowerCase()!=='0x14a34')throw Error('Select Base Sepolia in MetaMask.');
+}
 async function rabdi(p){
  try{await p.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x76edaf'}]});}
  catch(e){if(e.code!==4902)throw e;await p.request({method:'wallet_addEthereumChain',params:[{chainId:'0x76edaf',chainName:'Arkiv Rabdi',nativeCurrency:{name:'Test Golem',symbol:'tGLM',decimals:18},rpcUrls:['https://rpc.rabdi.db-chain.testnet.arkiv.network'],blockExplorerUrls:['https://rabdi.explorer.arkiv.network']}]});}
@@ -62,7 +67,8 @@ async function connect(){
 }
 async function attach(hash){await api('result',{tx_hash:hash});localStorage.removeItem('ira-tx-'+token);$('message').textContent='Transaction reference saved. Return to WhatsApp for confirmation and your receipt.';$('recover').hidden=true;}
 async function sign(){
- const p=provider();await (state.payment.chain_id===7794095?rabdi:sepolia)(p);
+ const p=provider(),select={7794095:rabdi,11155111:sepolia,84532:baseSepolia}[state.payment.chain_id];
+ if(!select)throw Error('Unsupported payment network');await select(p);
  await p.request({method:'wallet_requestPermissions',params:[{eth_accounts:{}}]});
  const {address}=await account();
  if(address.toLowerCase()!==state.payment.sender.toLowerCase())throw Error('Select the connected account '+state.payment.sender+' in MetaMask.');
@@ -92,14 +98,31 @@ async function init(){
   const deployment=state.payment.kind==='ccip_deployment';
   $('title').textContent=storage?'Save task to Arkiv':deployment?'Deploy CCIP sender':'Review payment';$('intro').textContent=storage?'Approve an encrypted task checkpoint on Arkiv Rabdi. This uses tGLM for the network fee. Records last 30 days.':deployment?'Create the CCIPSender contract on Ethereum Sepolia. Transaction value is 0 ETH; you pay deployment gas. This does not transfer tokens.':'You approved this payment in chat. Confirm the same details in MetaMask to send it.';
   const p=state.payment;const dl=document.createElement('dl');
-  for(const [label,value] of [['Network',p.chain_id===7794095?'Arkiv Rabdi':'Ethereum Sepolia'],['Amount',p.amount+' '+p.asset],['From',p.sender],[storage?'Arkiv storage operation':'Recipient',p.recipient],['Maximum fee (wei)',p.max_fee_wei],['Status',p.status]])dl.append(...detail(label,value));
+  const completed=['confirmed','delivered','verified'].includes(p.status);
+  document.title=(completed?'Receipt: ':'Review: ')+p.amount+' '+p.asset+' · Ira';
+  if(!storage&&!deployment){
+   $('intro').textContent="This is Ira's payment review. Check the amount, token and payment ID against WhatsApp. The button below opens MetaMask's transaction confirmation.";
+   if(completed){
+    $('title').textContent='Payment confirmed';
+    $('intro').textContent='This is the receipt for '+p.amount+' '+p.asset+'. This payment is already complete and cannot be sent again here. For a new payment, open the latest link in WhatsApp. If MetaMask returns to this tab, paste the new direct link into its browser.';
+   }else if(state.claimed||p.status!=='awaiting_signature'){
+    $('title').textContent=p.tx_hash?'Payment submitted':'Payment status';
+    $('intro').textContent='This page belongs only to '+p.amount+' '+p.asset+'. Check its saved status below. For another payment, open its own link from WhatsApp.';
+   }
+  }
+  if(p.id)dl.append(...detail('Payment ID',p.id));
+  for(const [label,value] of [['Network',({7794095:'Arkiv Rabdi',11155111:'Ethereum Sepolia',84532:'Base Sepolia'}[p.chain_id]??'Unsupported network')],['Amount',p.amount+' '+p.asset],['From',p.sender],[storage?'Arkiv storage operation':'Recipient',p.recipient],[p.chain_id===84532?'Execution gas budget (wei); L1 data fee extra':'Maximum fee (wei)',p.max_fee_wei],['Status',p.status]])dl.append(...detail(label,value));
   if(p.kind==='ccip'){for(const [label,value] of [['Step',p.phase==='allowance'?'Approve exact token allowance':'Send cross-chain transfer'],['Destination',p.destination],['Sender contract / allowance spender',p.sender_contract],['CCIP fee quote',p.ccip_fee_eth+' ETH'],['Maximum CCIP fee',p.ccip_fee_cap_eth+' ETH (unused portion refunded)']])dl.append(...detail(label,value));}
+  if(p.kind==='erc20_transfer'){for(const [label,value] of [['Transfer','Same-chain token transfer'],['Token contract',p.token_address],['Network fee asset','ETH']])dl.append(...detail(label,value));}
   $('details').append(dl);$('action').textContent='Review and send in MetaMask';$('action').onclick=()=>run(sign);
   if(deployment)$('action').textContent='Review contract deployment in MetaMask';
   if(state.claimed||p.status!==(storage?'external_prepared':'awaiting_signature')){$('action').hidden=true;$('recover').hidden=storage?p.status==='verified':!!p.tx_hash;$('message').textContent=p.tx_hash?'Transaction reference: '+p.tx_hash:'A signing request already started. Check MetaMask activity; do not send again.';if(p.tx_hash)$('hash').value=p.tx_hash;}
-  const saved=localStorage.getItem('ira-tx-'+token);if(saved){$('hash').value=saved;$('recover').hidden=false;}
+  if(completed){$('action').hidden=true;$('recover').hidden=true;$('open').hidden=true;localStorage.removeItem('ira-tx-'+token);}
+  const saved=localStorage.getItem('ira-tx-'+token);if(saved&&!completed){$('hash').value=saved;$('recover').hidden=false;}
  }
  $('action').disabled=false;
 }
 $('recover').onsubmit=e=>{e.preventDefault();run(()=>attach($('hash').value.trim()));};
 init().catch(e=>{$('message').textContent=e.message;$('action').hidden=true;});
+// Mobile browsers can restore an old DOM without requesting the updated receipt.
+window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
