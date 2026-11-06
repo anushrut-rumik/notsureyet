@@ -17,7 +17,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
-from agent.approval_language import is_approval
+from agent.approval_language import approval_in_context, is_approval
 
 CHAINS = ("11155111", "84532")
 NAMES = {"11155111": "Ethereum Sepolia", "84532": "Base Sepolia"}
@@ -991,7 +991,7 @@ class Lending:
         if self.mode == "off":
             return None
         command = text.strip()
-        if is_approval(command) and event_id:
+        if event_id and approval_in_context(self.store, user, event_id, command):
             if self.latest_review_command(user, event_id):
                 self.authenticate(user, event_id)
                 return await self.approve(user, command, event_id)

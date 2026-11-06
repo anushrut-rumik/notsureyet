@@ -228,3 +228,40 @@ async def test_setup_broker_unlocks_only_approved_intent_and_pause_is_reconcile_
     await setup.tick()
     assert len(payloads) == 2 and payloads[1]["reconcileOnly"] is True
     assert runtime.lending.read(USER)["setup"]["status"] == "paused"
+
+
+async def test_yes_to_unrelated_question_cannot_approve_an_older_setup(app, monkeypatch):
+    runtime, setup = make_testnet(app)
+
+    async def invoke(*args):
+        return review_result(runtime)
+
+    monkeypatch.setattr(setup, "invoke", invoke)
+    runtime.models.steps.append(call("lending_prepare_setup"))
+    await send(app, "Set up management")
+    runtime.store.notice(USER, "Would you like me to explain what test tokens are?")
+    runtime.models.steps.append(Answer("Test tokens are for testing."))
+    await send(app, "yes")
+    assert runtime.lending.read(USER)["setup"]["approvalEvent"] is None
+
+
+@pytest.mark.skipif(__import__("os").environ.get("NLP_LIVE_TEST") != "1", reason="opt-in real OpenAI inference")
+async def test_real_openai_whatsapp_setup_turn_returns_exact_review_without_deployment(app, monkeypatch):
+    from agent.config import Config
+    from agent.providers import Models
+
+    runtime, setup = make_testnet(app)
+    models = Models(Config())
+    runtime.models = runtime.engine.models = models
+    calls = []
+
+    async def invoke(user, confirmation=None):
+        calls.append(confirmation)
+        return review_result(runtime)
+
+    monkeypatch.setattr(setup, "invoke", invoke)
+    await send(app, "Set up my agent to manage my test tokens with CRE.")
+    assert calls == [None]
+    state = runtime.lending.read(USER)["setup"]
+    assert state["status"] == "awaiting_approval" and state["approvalEvent"] is None
+    assert runtime.store.events(USER, kind="chat_message")[-1]["data"]["content"] == state["review"]

@@ -5,7 +5,7 @@ import re
 import time
 from decimal import Decimal
 
-from agent.approval_language import is_approval
+from agent.approval_language import approval_in_context
 from agent.wallet import Wallets
 
 
@@ -190,7 +190,7 @@ class ChatCommands:
             )
             return self.review(payment)
         short = re.fullmatch(r"/?(approve|reject)(?:\s+(?:it|this))?[.!]?", command, re.I)
-        if short or is_approval(command):
+        if short or (user_event and approval_in_context(self.store, user, user_event, command)):
             code = self.recent_approval_code(user)
             if not code:
                 if not short:

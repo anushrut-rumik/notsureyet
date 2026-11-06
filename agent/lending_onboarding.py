@@ -5,7 +5,7 @@ import json
 import re
 import time
 
-from agent.approval_language import is_approval
+from agent.approval_language import approval_in_context
 
 
 class LendingOnboarding:
@@ -159,7 +159,7 @@ class LendingOnboarding:
 
     async def handle(self, user, text, event_id):
         service = self.lending
-        if service.mode != "testnet" or not event_id or not is_approval(text):
+        if service.mode != "testnet" or not event_id or not approval_in_context(service.store, user, event_id, text):
             return None
         reference = self.latest_review(user, event_id)
         if not reference:
