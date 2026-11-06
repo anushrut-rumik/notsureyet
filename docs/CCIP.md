@@ -8,6 +8,36 @@ payment key or wallet service is introduced.
 The feature is implemented and locally tested. Deployment and a funded testnet
 transfer from an actual WhatsApp handset remain setup and acceptance steps.
 
+## WhatsApp with Chainlink Local Simulator
+
+For a local demo, set `AGENT_CCIP_MODE=simulation` in the existing `.env` and restart
+the WhatsApp worker. Leave `AGENT_CCIP_SENDER_ADDRESS` empty. No deployment account,
+public-chain sender address, faucet funding, MetaMask signature or Arkiv checkpoint
+signature is needed for the simulation itself. Keep the existing connected wallet
+and agent wallet: their addresses identify the simulated sender and recipient.
+
+Ask: “Simulate sending 0.001 CCIP-BnM from my wallet on Ethereum Sepolia to the
+agent wallet on Base Sepolia using Chainlink Local Simulator.”
+
+The chat tool runs `contracts/script/SimulateCCIPTransfer.s.sol` with the requested
+addresses and amount. It creates the simulator and our actual Solidity sender in
+an isolated Foundry EVM, supplies temporary faucet balances, pays a nonzero native
+fee, and verifies delivery, the saved message ID and duplicate-send rejection.
+Ethereum Sepolia and Base Sepolia describe the requested scenario; the local
+simulator runs synchronously in one EVM with its own selector. This is not evidence
+of public cross-chain delivery. Responses explicitly say **LOCAL SIMULATION**.
+
+The encrypted result is saved under `.local/ccip-simulation-*.json`. Repeating the
+same request returns that result without executing another simulation. Simulation
+results are separate from real payment intents, contain no public transaction hash,
+and cannot be used as public delivery receipts. Existing real payments are preserved.
+The demo accepts up to 10 CCIP-BnM. The simulated fee is fixed at 0.001 ETH; it is
+not a live quote or an amount charged to the real wallet.
+
+Run the same local demo from the terminal with `npm run ccip:simulate`.
+Restore `AGENT_CCIP_MODE=testnet` for actual testnet transfers; only that mode
+requires the sender deployment and real test-token balances described below.
+
 ## Verified route and dependencies
 
 Checked on **6 November 2026** against the official

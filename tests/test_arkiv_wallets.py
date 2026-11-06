@@ -271,3 +271,121 @@ async def test_storage_outage_keeps_wallet_setup_available_and_defers_recovery(c
         assert len(attempts) == 1
     finally:
         await runtime.close()
+
+
+async def test_funded_agent_wallet_can_own_storage_while_metamask_remains_payment_source(config):
+    from tests.test_mobile_wallet import connect
+
+    config.env["AGENT_WALLET_PUBLIC_URL"] = "https://wallet.example"
+    rows = []
+    bridge = WalletNetwork(config, rows)
+    store = ArkivStore(config.db_path, config, bridge)
+    wallets = Wallets(config, store)
+    try:
+        store.recover()
+        agent = wallets.create("u")
+        connected, _ = connect(wallets)
+        old = store.create_task("u", "Old wallet", "Existing work", "Done")
+        selected = bridge.select_wallet("u", "agent")
+        assert selected["writer"] == agent["address"] and selected["kind"] == "local"
+        new = store.create_task("u", "Agent storage", "Save with funded agent", "Done")
+        assert rows[-1]["writer"] == agent["address"] and rows[-1]["task"] == new["id"]
+        assert wallets.get("u")["address"] == connected.address
+        assert wallets.get("u")["arkiv"]["address"] == agent["address"]
+        assert not bridge.task_active("u", old["id"])
+        assert bridge.task_active("u", new["id"])
+    finally:
+        await wallets.close()
+        store.close()
+    bridge = WalletNetwork(config, rows)
+    try:
+        assert bridge.active("u")["address"] == agent["address"]
+    finally:
+        bridge.close()
+
+
+async def test_confirmed_storage_after_lost_callback_resumes_same_task_without_resending(config):
+    """A successful network write with a failed browser callback must not strand the queue."""
+    from tests.test_mobile_wallet import connect
+
+    class DelayedReadback(WalletNetwork):
+        ready = False
+        commands = []
+
+        def _invoke(self, scope, command, **args):
+            self.commands.append(command)
+            if command == "reconcile":
+                journal = self.journal(scope)
+                if journal and journal.get("state") == "external_submitted":
+                    if not self.ready:
+                        raise ArkivError("Receipt not yet indexed")
+                    row = {**journal, "entity_key": "0x" + "ab" * 32, "expires_at_block": "12345"}
+                    self.rows.append(row)
+                    self.save_json(self.journal_path(scope), {**journal, "state": "verified", "result": row})
+                return {"reconciled": True}
+            return super()._invoke(scope, command, **args)
+
+    bridge = DelayedReadback(config, [])
+    store = ArkivStore(config.db_path, config, bridge)
+    wallets = Wallets(config, store)
+    config.env["AGENT_WALLET_PUBLIC_URL"] = "https://wallet.example"
+    try:
+        store.recover()
+        # The wallet endpoint's origin is set at construction.
+        wallets.mobile.origin = "https://wallet.example"
+        connect(wallets)
+        task = store.create_task("u", "Send 0.001 Sepolia ETH", "Pay exactly once", "Confirmed receipt")
+        scope = bridge.scope("u")
+        journal = bridge.journal(scope)
+        bridge.save_json(
+            bridge.journal_path(scope),
+            {
+                **journal,
+                "state": "external_submitted",
+                "hash": "0x" + "12" * 32,
+            },
+        )
+        baseline = list(bridge.commands)
+        assert store.claim() is None
+        assert store.reconcile_checkpoints(force=True) == []
+        assert store.claim() is None
+        assert bridge.journal(scope)["state"] == "external_submitted"
+        bridge.ready = True
+        assert store.reconcile_checkpoints(force=True) == [task["id"]]
+        assert task["id"] in store.digests
+        assert not bridge.pending("u")
+        assert bridge.commands[len(baseline) :] == ["reconcile", "reconcile"]
+        assert store.reconcile_checkpoints(force=True) == []
+        assert len(bridge.rows) == 1
+        claimed = store.claim()
+        assert claimed["id"] == task["id"]
+        assert len(store.tasks("u")) == 1
+        assert not wallets.list("u")  # Recovering storage cannot create, sign or send a payment.
+    finally:
+        await wallets.close()
+        store.close()
+
+
+async def test_storage_poll_never_reopens_unsigned_or_claimed_requests(config):
+    from tests.test_mobile_wallet import connect
+
+    config.env["AGENT_WALLET_PUBLIC_URL"] = "https://wallet.example"
+    bridge = WalletNetwork(config, [])
+    store = ArkivStore(config.db_path, config, bridge)
+    wallets = Wallets(config, store)
+    try:
+        store.recover()
+        connect(wallets)
+        task = store.create_task("u", "Pending signature", "Do not repeat", "Done")
+        scope = bridge.scope("u")
+        original = bridge.journal(scope)
+        assert store.reconcile_checkpoints(force=True) == []
+        assert bridge.journal(scope) == original
+        bridge.save_json(bridge.journal_path(scope), {**original, "state": "external_claimed"})
+        assert store.reconcile_checkpoints(force=True) == []
+        assert bridge.journal(scope)["state"] == "external_claimed"
+        assert store.claim() is None
+        assert store.task("u", task["id"])["status"] == "queued"
+    finally:
+        await wallets.close()
+        store.close()

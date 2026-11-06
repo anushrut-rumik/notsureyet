@@ -7,6 +7,7 @@ import { http, custom, MethodNotFoundRpcError, keccak256, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { readCurrent, prepareBatch } from './task-state.mjs';
 
 export const Tasks = defineSchema('ira_task_checkpoint_v1', {
   instance: str().indexed(), task: str().indexed(), revision: u64().indexed(),
@@ -19,8 +20,9 @@ export function saveJournal(path, value) {
   renameSync(tmp, path);
   const dir = openSync(new URL('.', pathToFileURL(path)), 'r'); fsyncSync(dir); closeSync(dir);
 }
-export function gasCap(estimate, blockLimit) {
-  const gas = 2n * estimate > 1000000n ? 2n * estimate : 1000000n;
+export function gasCap(estimate, blockLimit, operations = 1) {
+  const floor = 1000000n + 400000n * BigInt(operations - 1);
+  const gas = 2n * estimate > floor ? 2n * estimate : floor;
   if (estimate <= 0n || gas > blockLimit / 2n || gas > 2n ** 24n) throw Error('Unsigned gas preparation failed');
   return gas;
 }
@@ -51,7 +53,7 @@ export async function readAll(reader, writer, instance, task) {
   }
   throw Error('Checkpoint page limit reached; no incomplete recovery allowed');
 }
-async function estimate(account, chain, rpc, values, options, txParams) {
+async function estimate(account, chain, rpc, mutate, txParams) {
   let captured; const stop = Error('estimate captured');
   const reads = new Set(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber',
     'eth_getTransactionCount', 'eth_gasPrice', 'eth_maxPriorityFeePerGas', 'eth_estimateGas']);
@@ -64,8 +66,7 @@ async function estimate(account, chain, rpc, values, options, txParams) {
     return result;
   } }, { retryCount: 0 });
   const unsigned = { ...account, signTransaction: async () => { throw Error('Signing blocked'); } };
-  try { await createWalletClient({ account: unsigned, chain, transport })
-    .createEntity(Tasks, values, options, txParams); }
+  try { await mutate(createWalletClient({ account: unsigned, chain, transport }), txParams); }
   catch (e) {
     for (let cause = e, i = 0; cause && i < 24; i++, cause = cause.cause)
       if (cause === stop && captured) return captured;
@@ -78,7 +79,9 @@ export async function execute(input, rpcOverride) {
     fetchOptions: { redirect: 'error', cache: 'no-store' } })({ chain });
   const reader = createPublicClient({ chain, transport: custom(rpc, { retryCount: 0 }), cacheTime: 0 });
   if (await reader.getChainId() !== 7794095) throw Error('Wrong Arkiv network');
-  if (input.command === 'read') return { rows: await readAll(reader, input.writer, input.instance, input.task) };
+  const current = (task) => readCurrent(reader, input.writer, input.instance, task,
+    () => readAll(reader, input.writer, input.instance, task));
+  if (input.command === 'read') return { rows: await current(input.task) };
   if (input.command === 'funding') return { balance_wei: (await reader.getBalance({address: input.writer})).toString(),
     chain_id: 7794095, asset: 'tGLM', network: 'Arkiv Rabdi' };
   // A single local process holds the signer lock, including reconciliation.
@@ -108,7 +111,7 @@ export async function execute(input, rpcOverride) {
     const estimated = BigInt(await rpc.request({method: 'eth_estimateGas', params: [tx, 'latest']}));
     const block = await reader.getBlock({blockTag: 'latest'});
     if (nonce !== Number(BigInt(tx.nonce)) || nonce !== pending || gasPrice > BigInt(tx.gasPrice)
-      || gas < gasCap(estimated, block.gasLimit) || gas > block.gasLimit / 2n
+      || gas < gasCap(estimated, block.gasLimit, journal.operations ?? 1) || gas > block.gasLimit / 2n
       || gas * BigInt(tx.gasPrice) > BigInt(input.max_fee_wei)
       || await reader.getBalance({address: input.writer}) < gas * BigInt(tx.gasPrice)) throw Error('Checkpoint preflight changed');
     saveJournal(input.journal, {...journal, state: 'external_claimed'});
@@ -124,7 +127,8 @@ export async function execute(input, rpcOverride) {
     if (!journal.hash) throw Error('Uncertain Arkiv admission; manual reconciliation required');
     const receipt = await reader.getTransactionReceipt({ hash: journal.hash });
     if (receipt.status !== 'success') throw Error('Arkiv receipt reverted; no automatic retry');
-    const found = (await readAll(reader, input.writer, input.instance, journal.task))
+    const found = (await (journal.public_state ? current(journal.task)
+      : readAll(reader, input.writer, input.instance, journal.task)))
       .find(r => r.operation === journal.operation && r.encrypted === journal.encrypted);
     if (!found) throw Error('Receipt exists but checkpoint readback failed; no resend');
     journal = { ...journal, state: 'verified', result: found }; saveJournal(input.journal, journal);
@@ -137,24 +141,29 @@ export async function execute(input, rpcOverride) {
   const code = await reader.getCode({address: input.writer});
   if (code && code !== '0x')
     throw Error('Contract wallets are not supported by the Rabdi native write path');
-  const operation = keccak256(toHex(JSON.stringify([input.instance, input.task, input.revision, input.encrypted])));
+  const operation = keccak256(toHex(JSON.stringify([input.instance, input.task, input.revision,
+    input.encrypted, ...(input.public_state ? [input.public_state] : [])])));
   if (journal?.operation === operation) return journal.result;
   const values = { instance: input.instance, task: input.task, revision: u64(BigInt(input.revision)),
     operation, encrypted: Buffer.from(input.encrypted) };
   const options = { expiration: ExpirationTime.fromDays(30), flags: { readonly: true },
     salt: BigInt(operation) & ((1n << 128n) - 1n) };
+  const plan = input.public_state ? await prepareBatch(reader, input, operation) : null;
+  const mutate = (wallet, params) => plan ? wallet.executeBatch(plan.batch, params)
+    : wallet.createEntity(Tasks, values, options, params);
   const nonce = await reader.getTransactionCount({ address: account.address, blockTag: 'latest' });
   const pending = await reader.getTransactionCount({ address: account.address, blockTag: 'pending' });
   if (nonce !== pending) throw Error('Writer has pending transactions; reconcile first');
   const gasPrice = BigInt(await rpc.request({ method: 'eth_gasPrice' }));
-  const observed = await estimate(account, chain, rpc, values, options, { nonce, gasPrice });
+  const observed = await estimate(account, chain, rpc, mutate, { nonce, gasPrice });
   const latest = await reader.getBlock({ blockTag: 'latest' });
-  const gas = gasCap(observed, latest.gasLimit);
+  const gas = gasCap(observed, latest.gasLimit, plan?.operations ?? 1);
   const cost = gas * gasPrice;
   if (cost > BigInt(input.max_fee_wei) || cost > await reader.getBalance({ address: account.address }))
     throw Error('Arkiv fee exceeds configured budget or writer balance');
   journal = { state: 'prepared', operation, task: input.task, revision: input.revision,
-    instance: input.instance, writer: input.writer, encrypted: input.encrypted };
+    instance: input.instance, writer: input.writer, encrypted: input.encrypted,
+    ...(plan ? {public_state: input.public_state, operations: plan.operations} : {}) };
   if (input.command === 'prepare_external') {
     let transaction;
     const stop = Error('Captured unsigned wallet transaction');
@@ -163,8 +172,8 @@ export async function execute(input, rpcOverride) {
       if (/^eth_send|^wallet_/.test(args.method)) throw Error('Signing blocked');
       return rpc.request(args);
     }}, {retryCount: 0});
-    try {await createWalletClient({account, chain, transport, cacheTime: 0})
-      .createEntity(Tasks, values, options, {gas, nonce, gasPrice});} catch { /* Captured below; never forward sends. */ }
+    try {await mutate(createWalletClient({account, chain, transport, cacheTime: 0}),
+      {gas, nonce, gasPrice});} catch { /* Captured below; never forward sends. */ }
     if (!transaction) throw Error('Could not prepare wallet checkpoint');
     transaction = {...transaction, value: '0x0', chainId: '0x76edaf'};
     saveJournal(input.journal, {...journal, state: 'external_prepared', transaction});
@@ -180,13 +189,14 @@ export async function execute(input, rpcOverride) {
     return rpc.request(args);
   } }, { retryCount: 0 });
   const wallet = createWalletClient({ account, chain, transport, cacheTime: 0 });
-  const result = await wallet.createEntity(Tasks, values, options, { gas, nonce, gasPrice });
+  const result = await mutate(wallet, { gas, nonce, gasPrice });
   journal = { ...journal, state: 'receipt_confirmed', hash: result.txHash };
   saveJournal(input.journal, journal);
   const receipt = await reader.getTransactionReceipt({ hash: result.txHash });
   if (receipt.status !== 'success') throw Error('Arkiv receipt failed');
-  const row = (await readAll(reader, input.writer, input.instance, input.task))
-    .find(r => r.entity_key === result.entityKey && r.operation === operation && r.encrypted === input.encrypted);
+  const row = (await (plan ? current(input.task) : readAll(reader, input.writer, input.instance, input.task)))
+    .find(r => r.operation === operation && r.encrypted === input.encrypted
+      && (plan ? result.createdEntities.includes(r.entity_key) : r.entity_key === result.entityKey));
   if (!row) throw Error('Checkpoint readback failed; no resend');
   journal = { ...journal, state: 'verified', result: row }; saveJournal(input.journal, journal);
   return row;

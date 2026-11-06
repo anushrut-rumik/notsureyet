@@ -57,7 +57,7 @@ def completion(*, finish="stop", message=None):
             {"index": 0, "finish_reason": finish, "message": message or {"role": "assistant", "content": "done"}}
         ],
         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-            }
+    }
 
 
 def mock_models(config, respond):

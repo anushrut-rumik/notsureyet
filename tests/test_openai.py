@@ -23,12 +23,21 @@ def response(*, output=None, status="completed"):
         "created_at": 1,
         "model": "gpt-6-luna",
         "status": status,
-        "output": output if output is not None else [{
-            "type": "message", "id": "msg-1", "role": "assistant", "status": "completed",
-            "content": [{"type": "output_text", "text": "42", "annotations": []}],
-        }],
+        "output": output
+        if output is not None
+        else [
+            {
+                "type": "message",
+                "id": "msg-1",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": "42", "annotations": []}],
+            }
+        ],
         "usage": {
-            "input_tokens": 10, "output_tokens": 5, "total_tokens": 15,
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "total_tokens": 15,
             "input_tokens_details": {"cached_tokens": 0},
             "output_tokens_details": {"reasoning_tokens": 2},
         },
@@ -39,7 +48,9 @@ def mock_models(config, respond):
     models = Models(config)
     for name, endpoint in config.endpoints.items():
         models.clients[name] = AsyncOpenAI(
-            api_key=config.key(endpoint), base_url=endpoint.base_url, max_retries=0,
+            api_key=config.key(endpoint),
+            base_url=endpoint.base_url,
+            max_retries=0,
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
         )
     return models
@@ -50,27 +61,46 @@ async def test_luna_tool_round_trip_preserves_encrypted_reasoning_and_usage(conf
     requests = []
     native_output = [
         {"type": "reasoning", "id": "rs-1", "summary": [], "encrypted_content": "encrypted-state"},
-        {"type": "function_call", "id": "fc-1", "call_id": "call-1", "name": "calculate",
-         "arguments": '{"expression":"6*7"}', "status": "completed"},
+        {
+            "type": "function_call",
+            "id": "fc-1",
+            "call_id": "call-1",
+            "name": "calculate",
+            "arguments": '{"expression":"6*7"}',
+            "status": "completed",
+        },
     ]
 
     def respond(request):
         requests.append(request)
         return httpx.Response(
-            200, headers={"x-request-id": "req-1"},
+            200,
+            headers={"x-request-id": "req-1"},
             json=response(output=native_output) if len(requests) == 1 else response(),
         )
 
     models = mock_models(config, respond)
-    tools = [{"type": "function", "function": {
-        "name": "calculate", "parameters": {"type": "object", "properties": {}},
-    }}]
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "calculate",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
     messages = [{"role": "user", "content": "Calculate 6*7"}]
     try:
         first = await models.complete(role, messages, tools)
-        second = await models.complete(role, [
-            *messages, first.message(), {"role": "tool", "tool_call_id": "call-1", "content": "42"},
-        ], tools)
+        second = await models.complete(
+            role,
+            [
+                *messages,
+                first.message(),
+                {"role": "tool", "tool_call_id": "call-1", "content": "42"},
+            ],
+            tools,
+        )
         assert second.text == "42"
         assert first.metadata["usage"]["output_tokens_details"]["reasoning_tokens"] == 2
         assert first.metadata["request_id"] == "req-1"
@@ -122,13 +152,30 @@ async def test_old_provider_state_is_not_sent_to_openai(config):
 
     models = mock_models(config, respond)
     try:
-        await models.complete("chat", [{
-            "role": "assistant", "content": "Old answer", "_native_id": "previous:model",
-            "reasoning_content": "previous provider reasoning", "_response_items": [{"type": "reasoning"}],
-            "tool_calls": [{"id": "old-call", "type": "function", "function": {
-                "name": "calculate", "arguments": "{}",
-            }}],
-        }, {"role": "tool", "tool_call_id": "old-call", "content": "42"}], [])
+        await models.complete(
+            "chat",
+            [
+                {
+                    "role": "assistant",
+                    "content": "Old answer",
+                    "_native_id": "previous:model",
+                    "reasoning_content": "previous provider reasoning",
+                    "_response_items": [{"type": "reasoning"}],
+                    "tool_calls": [
+                        {
+                            "id": "old-call",
+                            "type": "function",
+                            "function": {
+                                "name": "calculate",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "old-call", "content": "42"},
+            ],
+            [],
+        )
         assert bodies[0]["input"] == [
             {"role": "assistant", "content": "Old answer"},
             {"type": "function_call", "call_id": "old-call", "name": "calculate", "arguments": "{}"},
@@ -144,9 +191,15 @@ async def test_catalog_checks_model_access_without_paid_inference(config):
     def respond(request):
         requests.append(request)
         assert request.method == "GET" and request.url.path == "/v1/models"
-        return httpx.Response(200, json={"object": "list", "data": [
-            {"id": "gpt-6-luna", "object": "model", "created": 1, "owned_by": "openai"},
-        ]})
+        return httpx.Response(
+            200,
+            json={
+                "object": "list",
+                "data": [
+                    {"id": "gpt-6-luna", "object": "model", "created": 1, "owned_by": "openai"},
+                ],
+            },
+        )
 
     models = mock_models(config, respond)
     try:
@@ -160,10 +213,18 @@ async def test_catalog_checks_model_access_without_paid_inference(config):
         await models.close()
 
 
-@pytest.mark.parametrize("options", [
-    {"stream": True}, {"background": True}, {"input": []}, {"store": True},
-    {"include": []}, {"extra_body": {"tools": []}}, {"extra_body": {"model": "other"}},
-])
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"stream": True},
+        {"background": True},
+        {"input": []},
+        {"store": True},
+        {"include": []},
+        {"extra_body": {"tools": []}},
+        {"extra_body": {"model": "other"}},
+    ],
+)
 def test_responses_options_cannot_override_the_agent_contract(options):
     with pytest.raises(ValidationError):
         Endpoint(protocol="responses", base_url="https://api.openai.com/v1", model="gpt-6-luna", options=options)

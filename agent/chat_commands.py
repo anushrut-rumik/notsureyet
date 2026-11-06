@@ -36,11 +36,12 @@ class ChatCommands:
                 "This review expires in 5 minutes.\n"
                 f"Reply exactly: approve {payment['approval_code']}\nOr: reject {payment['approval_code']}"
             )
+        network = "Arkiv Rabdi (7794095)" if payment.get("kind") == "rabdi_native" else "Ethereum Sepolia"
         return (
             f"Review payment {payment['id']}\n"
-            f"Send: {payment['amount']} ETH on Ethereum Sepolia\n"
+            f"Send: {payment['amount']} {payment['asset']} on {network}\n"
             f"From: {payment['sender']}\nTo: {payment['recipient']}\n"
-            f"Maximum gas fee: {Decimal(payment['max_fee_wei']) / 10**18} ETH\n"
+            f"Maximum gas fee: {Decimal(payment['max_fee_wei']) / 10**18} {payment['asset']}\n"
             "Expires in 5 minutes. No funds have been sent.\n"
             f"Reply exactly: approve {payment['approval_code']}\n"
             f"Or: reject {payment['approval_code']}"
@@ -90,8 +91,19 @@ class ChatCommands:
         if command.lower().lstrip("/") == "recover":
             if self.runtime.jobs:
                 return "A task is still running. Wait for it to pause before requesting recovery."
-            self.store.recover()
+            self.runtime.recovered = False
+            self.runtime.recovery_retry_at = 0
+            self.runtime.recover()
             return f"Recovered task checkpoints from {self.store.backend}. No payment was resubmitted."
+        match = re.fullmatch(r"/?arkiv wallet (agent|connected|active)", command, re.I)
+        if match:
+            if self.store.backend != "arkiv":
+                return "Enable Arkiv task storage before choosing its wallet."
+            scope = self.store.bridge.select_wallet(user, match[1].lower())
+            return (
+                f"New Arkiv tasks will use {scope['writer']} on Rabdi. "
+                "Existing tasks retain their original wallet. Agent-created wallets sign checkpoints automatically."
+            )
         if command.lower().lstrip("/") == "arkiv":
             if self.store.backend != "arkiv":
                 return "Task storage is local SQLite. Enable Arkiv before making payments."
@@ -114,17 +126,17 @@ class ChatCommands:
             )
         match = re.fullmatch(r"/?transfer ([0-9.]+) (0x[0-9a-fA-F]{40})", command, re.I)
         if match:
-            # Keep the task paused while preparing; only approval/reconciliation can advance it.
-            task = self.store.create_task(
-                user, "Sepolia payment", command, "The exact prepared transfer has a verified receipt"
+            from agent.payments import prepare_request
+
+            payment = await prepare_request(
+                self.wallets,
+                user,
+                asset="ETH",
+                amount=match[1],
+                source_network="ethereum_sepolia",
+                destination_network="ethereum_sepolia",
+                recipient=match[2],
             )
-            self.store.update_task(user, task["id"], status="needs_input", notes="Preparing a payment for review")
-            try:
-                payment = await self.wallets.prepare(user, task["id"], match[2], match[1])
-            except ValueError as exc:
-                self.store.update_task(user, task["id"], notes=str(exc))
-                raise
-            self.store.update_task(user, task["id"], notes=f"Awaiting explicit approval for {payment['id']}")
             return self.review(payment)
         match = re.fullmatch(r"/?(approve|reject) ([0-9a-f]{12})", command, re.I)
         if match:

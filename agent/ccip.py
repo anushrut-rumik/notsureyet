@@ -49,6 +49,10 @@ class CCIP:
         self.destination_rpc_override = None
 
     def sender(self):
+        from agent.ccip_simulation import mode
+
+        if mode(self.wallets.config) == "simulation":
+            raise ValueError("CCIP is in local simulation mode; use simulate_ccip_transfer, without a deployed address")
         value = self.env.get("AGENT_CCIP_SENDER_ADDRESS")
         if not value:
             raise ValueError("Deploy CCIPSender on Ethereum Sepolia and set AGENT_CCIP_SENDER_ADDRESS")
@@ -78,10 +82,10 @@ class CCIP:
         return decode(output, bytes.fromhex(data[2:]))[0]
 
     async def validate(self):
+        sender = self.sender()
         await self.wallets.network()
         if int(await self.destination_rpc("eth_chainId", []), 16) != BASE_SEPOLIA:
             raise ValueError("Destination RPC must use Base Sepolia (84532)")
-        sender = self.sender()
         if await self.wallets.rpc("eth_getCode", [sender, "latest"]) == "0x":
             raise ValueError("No CCIPSender contract at configured address")
         for getter, expected, output in (
@@ -105,6 +109,14 @@ class CCIP:
 
     async def quote(self, user, recipient, amount):
         recipient, units = address(recipient), token_units(amount)
+        from agent.ccip_simulation import mode
+
+        if mode(self.wallets.config) == "simulation":
+            return {
+                "mode": "simulation", "asset": "CCIP-BnM", "amount": decimal(units), "recipient": recipient,
+                "simulated_fee_eth": "0.001",
+                "note": "Fixed Chainlink Local test fee. No live fee quote, gas estimate or public transfer.",
+            }
         sender = await self.validate()
         wallet = self.wallets.get(user)
         fee = await self.read(

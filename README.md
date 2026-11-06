@@ -86,7 +86,9 @@ loss does not cause a submitted payment to be sent again. Checkpoints have 30-da
 retention; the running worker refreshes unfinished tasks weekly. MetaMask wallets
 require approval for each refresh.
 
-Arkiv selects the active wallet dynamically for each chat. Agent-created wallets use
+Arkiv selects the storage wallet dynamically for each chat. `/arkiv wallet agent`
+uses the agent-created wallet for new tasks while MetaMask remains connected for payments.
+`/arkiv wallet connected` selects MetaMask; `/arkiv wallet active` restores the default selection. Agent-created wallets use
 their existing encrypted signing key. Connected MetaMask wallets approve each
 checkpoint through a Rabdi signing link; work waits for confirmed storage.
 `/arkiv` shows your active address, live tGLM balance and public query scope.
@@ -105,8 +107,15 @@ Automated tests cover per-user wallet selection, isolated recovery, pending Meta
 checkpoints across restart, and stopping external effects until storage is approved.
 They also exercise the full model-preparation → raw-chat approval → signing
 → receipt → task-completion flow with simulated networks, plus cache-loss recovery
-and real SDK query/unsigned-estimation paths. **Live Arkiv writes, live transfers,
-WhatsApp delivery and handset behavior still need funded/configured testing.**
+and real SDK query/unsigned-estimation paths.
+
+On 2026-11-06, the funded agent wallet successfully created and updated the encrypted
+“Arkiv live storage proof” task on Rabdi. Both receipts and entity creator/owner were
+independently checked, and an empty SQLite cache recovered the completed task.
+[Create transaction](https://rabdi.explorer.arkiv.network/tx/0x8c341a16ec19209ee1566b56ef883ee2dc6549e2875db8e7f09defe7d98787ca),
+[update transaction](https://rabdi.explorer.arkiv.network/tx/0x4e72ea2a1dd8941c1fe95aeeea4af6683d39ed31ba76abe905f629e4535fa3f4).
+The two writes cost 0.000512504 tGLM total. This validates storage and cache recovery;
+it does not establish that a payment was sent or a handset received a message.
 The Arkiv Codex plugin 0.5.4 was installed; its Mumbai MCP endpoint responded.
 
 See [setup, chat commands, custody and verification limits](docs/WEB3.md),

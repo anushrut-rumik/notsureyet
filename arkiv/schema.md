@@ -22,7 +22,8 @@ authenticated data binds instance, task ID and revision. Each encryption uses a
 fresh random 12-byte nonce. Ciphertext length, indexed attributes, creator/owner
 and expiry are public. The bytes column being unindexed does not make it private.
 
-New entities are created and owned by the active wallet selected in that chat.
+New entities are created and owned by the storage wallet selected in that chat.
+An agent-created storage wallet can remain separate from a connected payment wallet.
 The scope binds chat identity and wallet address using the local encryption key.
 Switching wallets does not reassign existing tasks. Legacy application-writer
 records retain their original owner and remain readable.

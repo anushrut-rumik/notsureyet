@@ -62,7 +62,7 @@ async function connect(){
 }
 async function attach(hash){await api('result',{tx_hash:hash});localStorage.removeItem('ira-tx-'+token);$('message').textContent='Transaction reference saved. Return to WhatsApp for confirmation and your receipt.';$('recover').hidden=true;}
 async function sign(){
- const p=provider();await (state.kind==='arkiv'?rabdi:sepolia)(p);
+ const p=provider();await (state.payment.chain_id===7794095?rabdi:sepolia)(p);
  await p.request({method:'wallet_requestPermissions',params:[{eth_accounts:{}}]});
  const {address}=await account();
  if(address.toLowerCase()!==state.payment.sender.toLowerCase())throw Error('Select the connected account '+state.payment.sender+' in MetaMask.');
@@ -91,7 +91,7 @@ async function init(){
   const storage=state.kind==='arkiv';
   $('title').textContent=storage?'Save task to Arkiv':'Review payment';$('intro').textContent=storage?'Approve an encrypted task checkpoint on Arkiv Rabdi. This uses tGLM for the network fee. Records last 30 days.':'You approved this payment in chat. Confirm the same details in MetaMask to send it.';
   const p=state.payment;const dl=document.createElement('dl');
-  for(const [label,value] of [['Network',storage?'Arkiv Rabdi':'Ethereum Sepolia'],['Amount',p.amount+' '+p.asset],['From',p.sender],[storage?'Arkiv storage operation':'Recipient',p.recipient],['Maximum fee (wei)',p.max_fee_wei],['Status',p.status]])dl.append(...detail(label,value));
+  for(const [label,value] of [['Network',p.chain_id===7794095?'Arkiv Rabdi':'Ethereum Sepolia'],['Amount',p.amount+' '+p.asset],['From',p.sender],[storage?'Arkiv storage operation':'Recipient',p.recipient],['Maximum fee (wei)',p.max_fee_wei],['Status',p.status]])dl.append(...detail(label,value));
   if(p.kind==='ccip'){for(const [label,value] of [['Step',p.phase==='allowance'?'Approve exact token allowance':'Send cross-chain transfer'],['Destination',p.destination],['Sender contract / allowance spender',p.sender_contract],['CCIP fee quote',p.ccip_fee_eth+' ETH'],['Maximum CCIP fee',p.ccip_fee_cap_eth+' ETH (unused portion refunded)']])dl.append(...detail(label,value));}
   $('details').append(dl);$('action').textContent='Review and send in MetaMask';$('action').onclick=()=>run(sign);
   if(state.claimed||p.status!==(storage?'external_prepared':'awaiting_signature')){$('action').hidden=true;$('recover').hidden=storage?p.status==='verified':!!p.tx_hash;$('message').textContent=p.tx_hash?'Transaction reference: '+p.tx_hash:'A signing request already started. Check MetaMask activity; do not send again.';if(p.tx_hash)$('hash').value=p.tx_hash;}

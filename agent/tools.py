@@ -24,6 +24,7 @@ class Context:
     mode: str = "chat"
     task_id: str | None = None
     stopped: bool = False
+    payment_response: str | None = None
     started_tasks: list[str] = field(default_factory=list)
 
     @property
@@ -114,7 +115,7 @@ class PageText(HTMLParser):
 def register_builtins(registry: Registry):
     @registry.tool(effect=True, modes=("chat",))
     async def create_task(ctx, title: str, instruction: str, done_when: str):
-        """Take ownership of a user's job. Describe the full request and an observable completion condition."""
+        """Create a background task for NON-PAYMENT work. For any payment, use prepare_payment directly in chat."""
         original = ctx.store.events(ctx.user_id, after=ctx.user_event - 1, limit=1)
         if original and original[0]["id"] == ctx.user_event:
             instruction = "Original user request: " + original[0]["data"].get("content", "") + "\nTask: " + instruction

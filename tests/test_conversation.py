@@ -141,7 +141,7 @@ async def test_inference_failure_is_recorded_without_raw_body_and_next_turn_reco
             await runtime.chat("u", "Hi")
         [error] = runtime.store.events("u", kind="chat_error")
         assert error["data"]["code"] == "http_402"
-        assert "balance is insufficient" in chat_error_message(captured.value)
+        assert "billing is unavailable" in chat_error_message(captured.value)
         assert "payment" not in chat_error_message(captured.value)
         assert await runtime.chat("u", "Hi again") == "Hello again."
     finally:

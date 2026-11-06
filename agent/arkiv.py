@@ -6,9 +6,11 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -81,16 +83,33 @@ class Bridge:
         finally:
             os.close(directory)
 
-    def active(self, user):
+    def active(self, user, source=None):
         name = hashlib.sha256(user.encode()).hexdigest()
-        for prefix in ("metamask", "wallet"):
+        preference = self.config.data_dir / f"arkiv-wallet-{name}.json"
+        if source is None:
+            source = json.loads(preference.read_text())["source"] if preference.exists() else "active"
+        choices = {"active": ("metamask", "wallet"), "agent": ("wallet",), "connected": ("metamask",)}
+        if source not in choices:
+            raise ArkivError("Choose active, agent, or connected for the Arkiv storage wallet")
+        for prefix in choices[source]:
             path = self.config.data_dir / f"{prefix}-{name}.json"
             if path.exists():
                 wallet = json.loads(path.read_text())
                 if wallet["user_id"] != user:
                     raise ArkivError("Wallet identity does not match this chat")
+                if source == "agent" and wallet["kind"] != "local":
+                    raise ArkivError("An agent-created signing wallet is required for automatic storage")
                 return wallet
         raise ArkivError("Create or connect a wallet in this chat before saving tasks.")
+
+    def select_wallet(self, user, source):
+        wallet = self.active(user, source)
+        name = hashlib.sha256(user.encode()).hexdigest()
+        self.save_json(self.config.data_dir / f"arkiv-wallet-{name}.json", {"source": source})
+        scope = self.scope(user)
+        if scope["writer"].lower() != wallet["address"].lower():
+            raise ArkivError("Storage wallet selection did not match the requested wallet")
+        return scope
 
     def scope(self, user):
         wallet = self.active(user)
@@ -142,6 +161,11 @@ class Bridge:
             return journal
         return None
 
+    def payment_reserved(self, user):
+        from agent.rabdi import payment_reserved
+
+        return payment_reserved(self.config, self.scope(user)["writer"])
+
     def pending_rows(self):
         rows = []
         seen = set()
@@ -176,6 +200,11 @@ class Bridge:
         )
 
     def _invoke(self, scope, command, **args):
+        if command in {"write", "prepare_external", "claim_external"}:
+            from agent.rabdi import payment_reserved
+
+            if payment_reserved(self.config, scope["writer"]):
+                raise ArkivError("A Rabdi payment is awaiting its receipt. Storage writes wait for that wallet nonce.")
         request = {
             "command": command,
             "writer": scope["writer"],
@@ -275,6 +304,8 @@ class ArkivStore(Store):
         self.receipts = {}
         self.pending_writes = {}
         self.failed_tasks = set()
+        self.next_checkpoint_poll = 0
+        self.staged_checkpoints = set()
 
     def close(self):
         self.bridge.close()
@@ -392,8 +423,28 @@ class ArkivStore(Store):
                     self.digests[task["id"]] = hashlib.sha256(json.dumps(original, sort_keys=True).encode()).hexdigest()
         super().recover()
         self.available = True
+        # A paused payment has a separate durable admission journal. Restoring its transient
+        # execution status must not create a new storage approval before the payment review.
+        payment_tasks = set()
+        for path in self.bridge.config.data_dir.glob("payment-*.json") if isinstance(self.bridge, Bridge) else []:
+            if not re.fullmatch(r"payment-[a-f0-9]{32}\.json", path.name):
+                continue
+            transfer_id = path.stem.removeprefix("payment-")
+            envelope = json.loads(path.read_text())
+            payment = self.vault.open(envelope["encrypted"], f"payment:{transfer_id}")
+            if payment["status"] in {
+                "awaiting_approval",
+                "awaiting_signature",
+                "submitting",
+                "submitted",
+                "unknown",
+                "in_transit",
+            }:
+                payment_tasks.add(payment["task_id"])
         # Running tasks and pending effects were normalized; persist before any work resumes.
         for item in snapshots:
+            if item["task"]["id"] in payment_tasks:
+                continue
             if not item["arkiv"].get("pending"):
                 if isinstance(self.bridge, Bridge) and not self.bridge.task_active(
                     item["task"]["user_id"], item["task"]["id"]
@@ -423,12 +474,27 @@ class ArkivStore(Store):
             ],
         }
 
+    @contextmanager
+    def stage_checkpoint(self, task_id):
+        """Stage unsigned preparation locally; callers must still cross the normal signing barrier."""
+        already_staged = task_id in self.staged_checkpoints
+        self.staged_checkpoints.add(task_id)
+        try:
+            yield
+        finally:
+            if not already_staged:
+                self.staged_checkpoints.discard(task_id)
+
     def flush_task(self, task_id, force=False):
+        if task_id in self.staged_checkpoints:
+            return
         if not self.available:
             raise ArkivError("Arkiv recovery has not completed; work is stopped")
         snapshot = self._snapshot(task_id)
         if snapshot is None:
             return
+        if isinstance(self.bridge, Bridge) and self.bridge.payment_reserved(snapshot["task"]["user_id"]):
+            return  # The payment admission journal protects this gap until the receipt is reconciled.
         data = json.dumps(snapshot, sort_keys=True)
         if len(data.encode()) > 85000:
             raise ArkivError("Task checkpoint exceeds 85 KB; stop and archive before continuing")
@@ -487,6 +553,39 @@ class ArkivStore(Store):
         self.receipts[task_id] = journal["result"]
         self.pending_writes.pop(task_id, None)
 
+    def reconcile_checkpoints(self, *, force=False):
+        """Check already-admitted MetaMask storage hashes. Never signs, broadcasts, or prepares a retry."""
+        if not self.available or not isinstance(self.bridge, Bridge):
+            return []
+        if not force and time.monotonic() < self.next_checkpoint_poll:
+            return []
+        self.next_checkpoint_poll = time.monotonic() + 15
+        recovered = []
+        for pending in self.bridge.pending_rows():
+            if not pending.get("hash") or pending.get("state") not in {"external_claimed", "external_submitted"}:
+                continue
+            user = pending["user_id"]
+            if not self.bridge.task_active(user, pending["task"]):
+                continue
+            scope = self.bridge.scope(user)
+            if scope["instance"] != pending["instance"]:
+                continue
+            try:
+                # reconcile only verifies the saved receipt and exact entity readback in the SDK bridge.
+                self.bridge._invoke(scope, "reconcile")
+                journal = self.bridge.journal(scope)
+                if (
+                    journal
+                    and journal.get("state") == "verified"
+                    and journal.get("hash") == pending["hash"]
+                    and journal.get("operation") == pending["operation"]
+                ):
+                    self.accept_checkpoint(user)
+                    recovered.append(pending["task"])
+            except ArkivError:
+                pass  # Pending, reverted or unavailable is never permission to submit another write.
+        return recovered
+
     async def checkpoint_barrier(self, task_id):
         if not isinstance(self.bridge, Bridge):
             return
@@ -499,8 +598,10 @@ class ArkivStore(Store):
                 "This task has an unconfirmed storage failure. Restore Arkiv and recover before continuing."
             )
         while True:
-            while self.bridge.pending(user):
-                self.notify_signature(user, task_id)
+            while self.bridge.pending(user) or self.bridge.payment_reserved(user):
+                self.reconcile_checkpoints()
+                if not self.bridge.payment_reserved(user):
+                    self.notify_signature(user, task_id)
                 await asyncio.sleep(0.5)
             self.accept_checkpoint(user)
             self.flush_task(task_id)
@@ -514,7 +615,11 @@ class ArkivStore(Store):
         for row in self.db.execute(
             "SELECT id,user_id FROM tasks WHERE status NOT IN ('completed','cancelled')"
         ).fetchall():
+            if row["id"] not in self.revisions:
+                continue  # An unsigned local draft has no on-chain record to renew.
             if isinstance(self.bridge, Bridge) and not self.bridge.task_active(row["user_id"], row["id"]):
+                continue
+            if isinstance(self.bridge, Bridge) and self.bridge.payment_reserved(row["user_id"]):
                 continue
             if time.time() - self.revisions.get(row["id"], 0) / 1_000_000 > 7 * 86400:
                 self.flush_task(row["id"], force=True)
@@ -554,6 +659,7 @@ class ArkivStore(Store):
                 and row["id"] not in blocked
                 and row["id"] not in self.failed_tasks
                 and self.bridge.task_active(row["user_id"], row["id"])
+                and not self.bridge.payment_reserved(row["user_id"])
             ]
             if not eligible:
                 return None

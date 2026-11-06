@@ -28,9 +28,9 @@ def address(value):
     return Web3.to_checksum_address(value)
 
 
-def amount_wei(value):
+def amount_wei(value, *, asset="ETH"):
     if not isinstance(value, str) or len(value) > 40 or not re.fullmatch(r"\d+(?:\.\d{1,18})?", value):
-        raise ValueError("Use an ETH decimal amount with at most 18 decimal places")
+        raise ValueError(f"Use a {asset} decimal amount with at most 18 decimal places")
     try:
         amount = Decimal(value)
         scaled = amount * 10**18
@@ -38,7 +38,7 @@ def amount_wei(value):
             raise ValueError
         return int(scaled)
     except (InvalidOperation, ValueError, OverflowError):
-        raise ValueError("Amount must be a positive ETH decimal with at most 18 decimal places") from None
+        raise ValueError(f"Amount must be a positive {asset} decimal with at most 18 decimal places") from None
 
 
 class Wallets:
@@ -62,6 +62,9 @@ class Wallets:
         from agent.ccip import CCIP
 
         self.ccip = CCIP(self)
+        from agent.rabdi import RabdiTransfers
+
+        self.rabdi = RabdiTransfers(self)
 
     def persist_wallet(self, wallet):
         name = hashlib.sha256(wallet["user_id"].encode()).hexdigest()
@@ -121,12 +124,9 @@ class Wallets:
                 "kind": "metamask",
                 "chain_id": SEPOLIA,
                 "network": "Ethereum Sepolia",
-                "arkiv": {
-                    "address": address(connected["address"]),
-                    "chain_id": 7794095,
-                    "network": "Arkiv Rabdi",
-                    "asset": "tGLM",
-                },
+                "arkiv": self.storage_wallet(user, address(connected["address"])),
+                "agent_wallet": self.agent_wallet(user, required=False),
+                "native_transfers": ["ETH on Ethereum Sepolia", "tGLM on Arkiv Rabdi"],
             }
         row = self.store.db.execute("SELECT address,kind FROM wallets WHERE user_id=?", (user,)).fetchone()
         if not row:
@@ -135,8 +135,26 @@ class Wallets:
             **dict(row),
             "chain_id": SEPOLIA,
             "network": "Ethereum Sepolia",
-            "arkiv": {"address": row["address"], "chain_id": 7794095, "network": "Arkiv Rabdi", "asset": "tGLM"},
+            "arkiv": self.storage_wallet(user, row["address"]),
+            "agent_wallet": {"address": row["address"], "kind": row["kind"]},
+            "native_transfers": ["ETH on Ethereum Sepolia", "tGLM on Arkiv Rabdi"],
         }
+
+    def storage_wallet(self, user, fallback):
+        bridge = getattr(self.store, "bridge", None)
+        wallet = bridge.active(user) if bridge and hasattr(bridge, "active") else {"address": fallback}
+        return {"address": wallet["address"], "chain_id": 7794095, "network": "Arkiv Rabdi", "asset": "tGLM"}
+
+    def agent_wallet(self, user, required=True):
+        name = hashlib.sha256(user.encode()).hexdigest()
+        path = self.config.data_dir / f"wallet-{name}.json"
+        if path.exists():
+            wallet = json.loads(path.read_text())
+            if wallet["user_id"] == user and wallet["kind"] == "local":
+                return {"address": address(wallet["address"]), "kind": "local"}
+        if required:
+            raise ValueError("No agent-created wallet exists in this chat. Specify the intended recipient address.")
+        return None
 
     def create(self, user):
         name = hashlib.sha256(user.encode()).hexdigest()
@@ -173,23 +191,102 @@ class Wallets:
             "block": int(block, 16),
         }
 
+    def journal_path(self, transfer_id):
+        if not re.fullmatch(r"[a-f0-9]{32}", transfer_id):
+            raise ValueError("Invalid payment reference")
+        return self.config.data_dir / f"payment-{transfer_id}.json"
+
+    def persist_transfer(self, transfer):
+        # This journal survives SQLite recovery and records one-shot wallet admission before sending.
+        from agent.arkiv import Bridge
+
+        task = self.store.task(transfer["user_id"], transfer["task_id"])
+        Bridge.save_json(
+            self.journal_path(transfer["id"]),
+            {
+                "encrypted": self.vault.seal(transfer, f"payment:{transfer['id']}"),
+                "task": self.vault.seal(task, f"payment-task:{transfer['id']}"),
+            },
+        )
+
+    def journal_transfer(self, transfer):
+        path = self.journal_path(transfer["id"])
+        if not path.exists():
+            return transfer
+        envelope = json.loads(path.read_text())
+        saved = self.vault.open(envelope["encrypted"], f"payment:{transfer['id']}")
+        if any(saved.get(k) != transfer.get(k) for k in ("id", "user_id", "task_id", "sender")):
+            raise ValueError("Payment journal does not match its task and wallet")
+        return saved
+
+    def restore(self):
+        for path in self.config.data_dir.glob("payment-*.json"):
+            if not re.fullmatch(r"payment-[a-f0-9]{32}\.json", path.name):
+                continue
+            transfer_id = path.stem.removeprefix("payment-")
+            envelope = json.loads(path.read_text())
+            transfer = self.vault.open(envelope["encrypted"], f"payment:{transfer_id}")
+            if transfer["id"] != transfer_id:
+                raise ValueError("Payment journal identity mismatch")
+            task = self.store.db.execute("SELECT user_id FROM tasks WHERE id=?", (transfer["task_id"],)).fetchone()
+            if (
+                not task
+                and transfer["status"] == "awaiting_approval"
+                and not transfer.get("tx_hash")
+                and not transfer.get("signing_requested_at")
+                and envelope.get("task")
+            ):
+                draft = self.vault.open(envelope["task"], f"payment-task:{transfer_id}")
+                if draft["id"] != transfer["task_id"] or draft["user_id"] != transfer["user_id"]:
+                    raise ValueError("Unsigned payment draft belongs to a different task")
+                draft.update(status="needs_input", wake_at=None)
+                with self.store.db:
+                    self.store.db.execute(
+                        "INSERT INTO tasks(" + ",".join(draft) + ") VALUES(" + ",".join("?" for _ in draft) + ")",
+                        list(draft.values()),
+                    )
+                task = self.store.db.execute("SELECT user_id FROM tasks WHERE id=?", (transfer["task_id"],)).fetchone()
+            if task and task["user_id"] == transfer["user_id"]:
+                with self.store.db:
+                    self.store.db.execute(
+                        "INSERT INTO transfers VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+                        (transfer_id, transfer["user_id"], transfer["task_id"], json.dumps(transfer)),
+                    )
+                    if transfer["status"] in {
+                        "awaiting_approval",
+                        "awaiting_signature",
+                        "submitting",
+                        "submitted",
+                        "unknown",
+                        "in_transit",
+                        "allowance_confirmed",
+                    }:
+                        self.store.db.execute(
+                            "UPDATE tasks SET status='needs_input',wake_at=NULL WHERE id=? AND user_id=? "
+                            "AND status IN ('queued','running','waiting')",
+                            (transfer["task_id"], transfer["user_id"]),
+                        )
+
     def load(self, user, transfer_id):
         row = self.store.db.execute(
             "SELECT data FROM transfers WHERE id=? AND user_id=?", (transfer_id, user)
         ).fetchone()
         if row is None:
             raise ValueError("No such transfer for this user")
-        return json.loads(row[0])
+        payment = self.journal_transfer(json.loads(row[0]))
+        return self.rabdi.load_admission(payment) if payment.get("kind") == "rabdi_native" else payment
 
-    def save(self, transfer):
+    def save(self, transfer, *, checkpoint=True):
         if transfer.get("kind") == "ccip" and transfer.get("phase") == "send" and transfer.get("tx_hash"):
             transfer["source_tx_hash"] = transfer["tx_hash"]
+        self.persist_transfer(transfer)
         with self.store.db:
             self.store.db.execute(
                 "INSERT INTO transfers VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
                 (transfer["id"], transfer["user_id"], transfer["task_id"], json.dumps(transfer)),
             )
-        self.store.flush_task(transfer["task_id"])
+        if checkpoint:
+            self.store.flush_task(transfer["task_id"])
 
     @staticmethod
     def view(transfer):
@@ -197,8 +294,8 @@ class Wallets:
 
     def list(self, user):
         return [
-            self.view(json.loads(row[0]))
-            for row in self.store.db.execute("SELECT data FROM transfers WHERE user_id=?", (user,))
+            self.view(self.load(user, row[0]))
+            for row in self.store.db.execute("SELECT id FROM transfers WHERE user_id=?", (user,))
         ]
 
     async def prepare(self, user, task_id, recipient, amount):
@@ -218,7 +315,8 @@ class Wallets:
         for transfer in self.list(user):
             if transfer["task_id"] == task_id:
                 if (
-                    transfer.get("kind") == "ccip"
+                    transfer.get("asset") != "ETH"
+                    or transfer.get("chain_id") != SEPOLIA
                     or transfer["recipient"] != recipient
                     or int(transfer["value_wei"]) != value
                 ):
@@ -294,10 +392,12 @@ class Wallets:
             task = self.store.task(user, transfer["task_id"])
             if task["status"] in {"completed", "cancelled"}:
                 raise ValueError("The task has ended; approval is disabled")
+            if transfer.get("kind") == "rabdi_native":
+                return await self.rabdi.approve(transfer)
             refresh_hint = (
                 "Refresh the unsigned CCIP review in this same task and approve its new code"
                 if transfer.get("kind") == "ccip"
-                else "Reject this preview and prepare a new task"
+                else "Refresh this unsigned payment review in the same task with refresh_payment_review"
             )
             if time.time() > transfer["expires_at"]:
                 raise ValueError("Transfer preview expired. " + refresh_hint)
@@ -374,6 +474,8 @@ class Wallets:
 
     async def _status(self, user, transfer_id):
         transfer = self.load(user, transfer_id)
+        if transfer.get("kind") == "rabdi_native":
+            return await self.rabdi.status(transfer)
         if transfer.get("kind") == "ccip":
             if transfer["status"] == "in_transit":
                 return await self.ccip.delivery(transfer)
@@ -457,6 +559,22 @@ class Wallets:
 
 
 def register_wallet_tools(registry):
+    @registry.tool(evidence=True)
+    async def rabdi_balance(ctx, wallet_address: str = ""):
+        """Read native tGLM on Arkiv Rabdi for the connected wallet or a specified public address."""
+        return await ctx.engine.wallets.rabdi.balance(ctx.user_id, wallet_address)
+
+    @registry.tool(modes=("task",))
+    async def prepare_rabdi_transfer(ctx, amount_tglm: str, recipient: str = ""):
+        """Prepare a native tGLM transfer on Arkiv Rabdi (7794095). Empty recipient funds this chat's
+        agent-created wallet from its active wallet. This does not send funds. Show review_message and
+        pause with ask_user. User must approve CODE in chat, then confirm in MetaMask if connected.
+        """
+        from agent.chat_commands import ChatCommands
+
+        payment = await ctx.engine.wallets.rabdi.prepare(ctx.user_id, ctx.task_id, recipient, amount_tglm)
+        return {**payment, "review_message": ChatCommands.review(payment)}
+
     @registry.tool(evidence=True)
     async def arkiv_status(ctx):
         """Read the active chat wallet's Rabdi tGLM balance and Arkiv storage status. No funds are sent."""

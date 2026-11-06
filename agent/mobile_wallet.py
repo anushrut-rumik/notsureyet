@@ -261,27 +261,32 @@ class MobileWallet:
             task = self.wallets.store.task(data["user_id"], payment["task_id"])
             if task["status"] in {"completed", "cancelled"}:
                 raise ValueError("This payment task has ended")
-            await self.wallets.network()
-            nonce = int(await self.wallets.rpc("eth_getTransactionCount", [payment["sender"], "pending"]), 16)
-            if nonce != int(payment["transaction"]["nonce"], 16):
-                raise ValueError("The wallet nonce changed. " + refresh_hint)
+            native_rabdi = payment.get("kind") == "rabdi_native"
+            if native_rabdi:
+                await self.wallets.rabdi.validate(payment)
+            else:
+                await self.wallets.network()
+                nonce = int(await self.wallets.rpc("eth_getTransactionCount", [payment["sender"], "pending"]), 16)
+                if nonce != int(payment["transaction"]["nonce"], 16):
+                    raise ValueError("The wallet nonce changed. " + refresh_hint)
             transaction = payment["transaction"]
-            if int(await self.wallets.rpc("eth_gasPrice", []), 16) > int(transaction["gasPrice"], 16):
+            rpc = self.wallets.rabdi.rpc if native_rabdi else self.wallets.rpc
+            if int(await rpc("eth_gasPrice", []), 16) > int(transaction["gasPrice"], 16):
                 raise ValueError("The network fee changed. " + refresh_hint)
-            if int(await self.wallets.rpc("eth_estimateGas", [transaction, "latest"]), 16) > int(
-                transaction["gas"], 16
-            ):
+            if int(await rpc("eth_estimateGas", [transaction, "latest"]), 16) > int(transaction["gas"], 16):
                 raise ValueError("The gas requirement changed. " + refresh_hint)
-            balance = int(await self.wallets.rpc("eth_getBalance", [payment["sender"], "latest"]), 16)
+            balance = int(await rpc("eth_getBalance", [payment["sender"], "latest"]), 16)
             if balance < int(payment["value_wei"]) + int(payment["max_fee_wei"]):
-                raise ValueError("Insufficient Sepolia ETH for this payment and its maximum gas fee")
+                raise ValueError(f"Insufficient {payment['asset']} for this payment and its maximum gas fee")
             data["claimed"] = True
             self._save(digest, data)
             # The claim is one-shot even if a later checkpoint fails. It cannot reopen a signing request.
             payment["signing_requested_at"] = time.time()
-            payment["start_block"] = int(await self.wallets.rpc("eth_blockNumber", []), 16)
-            self.wallets.save(payment)
-        await self.wallets.store.checkpoint_barrier(payment["task_id"])
+            payment["start_block"] = int(await rpc("eth_blockNumber", []), 16)
+            self.wallets.save(payment, checkpoint=native_rabdi)
+        if payment.get("kind") == "rabdi_native":
+            await self.wallets.store.checkpoint_barrier(payment["task_id"])
+            return await self.wallets.rabdi.admit_metamask(payment)
         return {"transaction": payment["transaction"], "transfer_id": payment["id"]}
 
     async def attach(self, token, tx_hash):
@@ -311,6 +316,8 @@ class MobileWallet:
             raise ValueError("Invalid transaction hash") from None
         payment = self.wallets.load(data["user_id"], data["transfer_id"])
         self.check_intent(data, payment)
+        if payment.get("kind") == "rabdi_native":
+            return await self.wallets.rabdi.attach(payment, tx_hash)
         if payment.get("tx_hash"):
             if payment["tx_hash"].lower() != tx_hash.lower():
                 raise ValueError("This payment already has a different transaction reference")
@@ -322,7 +329,7 @@ class MobileWallet:
         if tx.get("hash", "").lower() != tx_hash.lower() or not self.wallets.matches(payment, tx):
             raise ValueError("This transaction does not match the approved payment")
         payment.update(tx_hash=tx_hash, status="submitted")
-        self.wallets.save(payment)
+        self.wallets.save(payment, checkpoint=False)
         self.wallets.store.notice(
             data["user_id"],
             f"MetaMask payment submitted: {tx_hash}. I will check its receipt and keep this task saved.",

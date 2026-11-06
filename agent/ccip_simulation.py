@@ -1,0 +1,158 @@
+"""Execute the real sender with Chainlink Local; never sign or contact a public chain."""
+
+import asyncio
+import hashlib
+import json
+import re
+
+from eth_abi import decode
+
+from agent.arkiv import Bridge
+from agent.ccip import decimal, token_units
+from agent.wallet import address
+
+
+def mode(config):
+    value = config.env.get("AGENT_CCIP_MODE") or "testnet"
+    if value not in {"testnet", "simulation"}:
+        raise ValueError("AGENT_CCIP_MODE must be simulation or testnet")
+    return value
+
+
+async def execute(config, sender, recipient, units, intent):
+    command = [
+        "node",
+        "scripts/foundry.mjs",
+        "forge",
+        "script",
+        "contracts/script/SimulateCCIPTransfer.s.sol:SimulateCCIPTransfer",
+        "--json",
+        "--sig",
+        "run(address,address,uint256,bytes32)",
+        sender,
+        recipient,
+        str(units),
+        "0x" + intent,
+    ]
+    # Fixed arguments: no RPC, fork, broadcast, private key, or user-controlled shell command.
+    process = await asyncio.create_subprocess_exec(
+        *command, cwd=config.root, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    try:
+        async with asyncio.timeout(45):
+            stdout, _ = await process.communicate()
+    except BaseException:
+        if process.returncode is None:
+            process.kill()
+        await process.wait()
+        raise
+    if process.returncode:
+        raise ValueError("Local CCIP simulation failed. Run npm run ccip:simulate to inspect it; no funds moved")
+    try:
+        result = next(json.loads(line) for line in stdout.decode().splitlines() if line.startswith('{"logs":'))
+        if not result["success"]:
+            raise ValueError
+        report = bytes.fromhex(result["returns"]["report"]["value"][2:])
+        contract, message, fee, before, after, selector, duplicate = decode(
+            ["address", "bytes32", "uint256", "uint256", "uint256", "uint64", "bool"], report
+        )
+        expected = 0 if sender.lower() == recipient.lower() else units
+        if not any(message) or not duplicate or after - before != expected:
+            raise ValueError
+    except (KeyError, ValueError, StopIteration, UnicodeError) as exc:
+        raise ValueError("Local simulator returned no verified delivery result; no public transfer occurred") from exc
+    return {
+        "simulator_sender_contract": address(contract),
+        "simulation_message_id": "0x" + message.hex(),
+        "simulated_fee_eth": decimal(fee),
+        "recipient_balance_before": decimal(before),
+        "recipient_balance_after": decimal(after),
+        "simulator_selector": str(selector),
+        "duplicate_rejected": duplicate,
+    }
+
+
+def path(wallets, simulation_id):
+    if not re.fullmatch(r"[a-f0-9]{64}", simulation_id):
+        raise ValueError("Invalid simulation reference")
+    return wallets.config.data_dir / f"ccip-simulation-{simulation_id}.json"
+
+
+def status(wallets, user, simulation_id):
+    saved = path(wallets, simulation_id)
+    if not saved.exists():
+        raise ValueError("No saved CCIP simulation with this reference")
+    result = wallets.vault.open(json.loads(saved.read_text())["encrypted"], f"ccip-simulation:{user}:{simulation_id}")
+    return {**result, "reused_result": True}
+
+
+async def simulate(wallets, user, recipient, amount):
+    units = token_units(amount)
+    if units > 10 * 10**18:
+        raise ValueError("Local simulation accepts at most 10 CCIP-BnM")
+    sender, recipient = address(wallets.get(user)["address"]), address(recipient)
+    if int(recipient, 16) == 0:
+        raise ValueError("Recipient must be a nonzero address")
+    request = {"user": user, "sender": sender, "recipient": recipient, "units": str(units), "version": 1}
+    simulation_id = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
+    async with wallets.lock:
+        if path(wallets, simulation_id).exists():
+            return status(wallets, user, simulation_id)
+        result = {
+            "id": simulation_id,
+            "kind": "ccip_simulation",
+            "mode": "simulation",
+            "status": "simulation_delivered",
+            "asset": "CCIP-BnM",
+            "amount": decimal(units),
+            "sender": sender,
+            "recipient": recipient,
+            "scenario_source": "Ethereum Sepolia",
+            "scenario_destination": "Base Sepolia",
+            "execution_environment": "Chainlink Local Simulator in one isolated local EVM",
+            "source_tx_hash": None,
+            "public_delivery_verified": False,
+            **await execute(wallets.config, sender, recipient, units, simulation_id),
+        }
+        Bridge.save_json(
+            path(wallets, simulation_id),
+            {"encrypted": wallets.vault.seal(result, f"ccip-simulation:{user}:{simulation_id}")},
+        )
+        return result
+
+
+def review(result):
+    return (
+        "CCIP LOCAL SIMULATION — passed\n"
+        f"Amount: {result['amount']} CCIP-BnM\n"
+        f"Wallet address used in simulation: {result['sender']}\n"
+        f"Recipient: {result['recipient']}\n"
+        "Requested scenario: Ethereum Sepolia → Base Sepolia\n"
+        "Execution: Chainlink Local Simulator in one local EVM; these are simulated balances.\n"
+        f"Simulated native fee: {result['simulated_fee_eth']} ETH\n"
+        f"Recipient token balance: {result['recipient_balance_before']} → {result['recipient_balance_after']}\n"
+        f"Simulation message ID: {result['simulation_message_id']}\n"
+        "Verified locally: delivery, recorded message ID, and rejection of a duplicate send.\n"
+        "No wallet signature, storage signature, or public-chain transaction was created. "
+        "Your real ETH and CCIP-BnM balances are unchanged.\n"
+        f"Simulation reference: {result['id']}"
+        + ("\nReturning the saved result; the simulation was not run again." if result.get("reused_result") else "")
+    )
+
+
+def register_simulation_tools(registry):
+    @registry.tool(modes=("chat",), evidence=True)
+    async def simulate_ccip_transfer(ctx, recipient: str, amount: str):
+        """Run the actual sender with Chainlink Local Simulator. No public transfer or wallet signature.
+        Uses temporary faucet balances. Report simulation only; Sepolia/Base are scenario labels.
+        """
+        result = await simulate(ctx.engine.wallets, ctx.user_id, recipient, amount)
+        ctx.payment_response = review(result)
+        return result
+
+    @registry.tool(modes=("chat",), evidence=True)
+    async def ccip_simulation_status(ctx, simulation_id: str):
+        """Read a saved local simulation result for this chat. This never proves public testnet delivery."""
+        result = status(ctx.engine.wallets, ctx.user_id, simulation_id)
+        ctx.payment_response = review(result)
+        return result

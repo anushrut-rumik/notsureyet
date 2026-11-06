@@ -8,6 +8,7 @@
     "ccip:deps": "node scripts/install-ccip-deps.mjs",
     "ccip:test": "node scripts/foundry.mjs forge test --match-path contracts/test/CCIPSender.t.sol -vv",
     "ccip:build": "node scripts/foundry.mjs forge build",
+    "ccip:simulate": "node scripts/foundry.mjs forge script contracts/script/SimulateCCIPTransfer.s.sol:SimulateCCIPTransfer --sig 'run(address,address,uint256,bytes32)' 0x1111111111111111111111111111111111111111 0x2222222222222222222222222222222222222222 1000000000000000 0x0000000000000000000000000000000000000000000000000000000000000001",
     "ccip:deploy": "node scripts/foundry.mjs forge script contracts/script/DeployCCIPSender.s.sol:DeployCCIPSender --rpc-url sepolia --account ccip-deployer --broadcast",
     "ccip:forge": "node scripts/foundry.mjs forge",
     "ccip:cast": "node scripts/foundry.mjs cast",

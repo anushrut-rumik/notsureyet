@@ -16,7 +16,11 @@ uv run agent web3-init
 
 `web3-init` initializes the local encryption vault. It does not create a separate
 Arkiv wallet. Create a wallet through `/wallet create`, or connect an existing one
-through `/wallet connect`. The active wallet in that chat owns new Arkiv checkpoints.
+through `/wallet connect`. The selected storage wallet in that chat owns new Arkiv checkpoints.
+Use `/arkiv wallet agent` for automatic storage from the agent-created wallet,
+`/arkiv wallet connected` for MetaMask storage, or `/arkiv wallet active` for the
+default wallet selection. This preference is per chat and applies to new tasks.
+MetaMask can remain the payment source while the agent wallet pays for storage.
 
 Fund that same address with **tGLM on Rabdi** for task storage. For payments, fund
 the same address with **ETH on Sepolia**. These balances are independent. Inference
@@ -156,6 +160,7 @@ Back up these private local files through your normal secure backup process:
 
 - `.local/vault.key`: encryption key for task snapshots and signing-key files.
 - `.local/arkiv-scopes.json`: chat/wallet scopes and task-to-wallet bindings.
+- `.local/arkiv-wallet-*.json`: each chat's storage-wallet selection.
 - `.local/metamask-*.json`: signed wallet connections, with no private keys.
 - `.local/wallet-*.json`: each agent wallet's encrypted signing key and address.
 - `.local/arkiv-send-*.json`: per-wallet admitted transactions and pending checkpoints.
@@ -275,3 +280,26 @@ The WhatsApp line has been linked and the user confirmed receiving the wallet-cr
 reply on the handset. The MetaMask page and backend were tested, but mobile connection
 and payment success must be established by a completed handset signature and matching
 server result, not by seeing a MetaMask connection prompt.
+
+## Payment routing and unsigned reviews
+
+Natural-language payments now use `prepare_payment` in the chat before creating
+any storage transaction. It takes explicit asset, amount, source network,
+destination network and recipient fields. Unsupported routes and a missing CCIP
+sender deployment return a setup error directly, including when an unrelated task
+already has a pending Rabdi storage approval. They never substitute that storage
+link for the requested payment.
+
+A valid request creates an unsigned local review paused for the exact approval
+code. This draft is not yet an Arkiv-confirmed task. The approval path still saves
+the exact authorized intent on Arkiv before admitting a financial signature. The
+MetaMask signing request itself is also saved in an encrypted `payment-*.json`
+journal under `.local/`, before it is returned to the wallet. This journal survives
+SQLite recovery; it prevents re-admitting a wallet request after an interrupted
+response. Preserve these files with the existing vault and wallet-link database.
+Wallet admission and hash attachment do not request another storage signature.
+
+Expired unsigned reviews can be refreshed on the same payment and task using
+`refresh_payment_review`. This rotates the approval code. A claimed or submitted
+request cannot be refreshed or sent again. Signing remains a user action; neither
+routing nor local draft creation authorizes a transfer.

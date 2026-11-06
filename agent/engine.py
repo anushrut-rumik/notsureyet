@@ -30,7 +30,13 @@ class Engine:
         self.locks = defaultdict(asyncio.Lock)
 
     def system(self, ctx):
-        data = {"now_utc": datetime.now(UTC).isoformat(), "memories": self.store.memories(ctx.user_id)}
+        from agent.payments import capabilities
+
+        data = {
+            "now_utc": datetime.now(UTC).isoformat(),
+            "memories": self.store.memories(ctx.user_id),
+            "payment_capabilities": capabilities(self.wallets),
+        }
         if ctx.task_id:
             data["task"] = self.store.task(ctx.user_id, ctx.task_id)
             data["payments"] = [item for item in self.wallets.list(ctx.user_id) if item["task_id"] == ctx.task_id]
@@ -135,15 +141,30 @@ class Engine:
                     },
                 )
                 continue
+            payment_tools = {
+                "prepare_payment", "refresh_payment_review", "simulate_ccip_transfer", "ccip_simulation_status"
+            }
+            payment_turn = ctx.mode == "chat" and any(
+                call["function"]["name"] in payment_tools for call in answer.calls
+            )
             for call in answer.calls:
                 if ctx.task_id and self.store.task(ctx.user_id, ctx.task_id)["status"] == "cancelled":
                     ctx.stopped = True
                 if ctx.stopped:
                     result = {"ok": False, "error": "The task ended or paused earlier in this step. Tool was not run."}
+                elif payment_turn and (call["function"]["name"] not in payment_tools or ctx.payment_response):
+                    result = {"ok": False, "error": "Payment validation takes priority; other actions were not run."}
                 elif ctx.mode == "chat" and ctx.started_tasks:
                     result = {"ok": False, "error": "Work was handed to the background task. Tool was not run here."}
                 else:
                     result = await self.registry.execute(ctx, call)
+                    if (
+                        ctx.mode == "chat"
+                        and call["function"]["name"] in payment_tools
+                        and not result.get("ok")
+                        and not ctx.payment_response
+                    ):
+                        ctx.payment_response = "Cannot prepare this payment: " + result["error"]
                 shown = json.dumps(result, ensure_ascii=False, default=str)
                 if len(shown) > 16000:
                     shown = json.dumps(
@@ -157,6 +178,8 @@ class Engine:
                 if ctx.task_id:
                     self.store.flush_task(ctx.task_id)
                     await self.store.checkpoint_barrier(ctx.task_id)
+            if ctx.mode == "chat" and ctx.payment_response:
+                return ctx.payment_response
             if ctx.mode == "chat" and ctx.started_tasks:
                 return await self.acknowledge(ctx, role)
             if ctx.stopped:
@@ -166,6 +189,12 @@ class Engine:
     async def acknowledge(self, ctx, role):
         """Explain the handoff with the model, without granting another action turn."""
         fallback = "I've started the task and will send you an update when I have a result or need your input."
+        bridge = getattr(self.store, "bridge", None)
+        if bridge and hasattr(bridge, "pending") and bridge.pending(ctx.user_id):
+            fallback = (
+                "Your task is waiting for your wallet approval to save it on Arkiv. "
+                "Use the signing link in this chat; work has not started yet."
+            )
         messages = [{"role": "system", "content": self.system(ctx)}, *compact(self.store.messages(ctx.scope))]
         messages.append(
             {

@@ -5,10 +5,12 @@ import time
 
 from agent.arkiv import ArkivError, Bridge, open_store
 from agent.ccip import register_ccip_tools
+from agent.ccip_simulation import register_simulation_tools
 from agent.chat_commands import ChatCommands
 from agent.chat_errors import record_chat_error
 from agent.config import Config
 from agent.engine import Engine
+from agent.payments import register_payment_tools
 from agent.providers import Models
 from agent.tools import Registry, register_builtins
 from agent.wallet import Wallets, register_wallet_tools
@@ -24,6 +26,8 @@ class Runtime:
         register_builtins(self.registry)
         register_wallet_tools(self.registry)
         register_ccip_tools(self.registry)
+        register_payment_tools(self.registry)
+        register_simulation_tools(self.registry)
         for module in config.tool_modules:
             importlib.import_module(module).register_tools(self.registry)
         self.engine = Engine(config, self.store, self.models, self.registry)
@@ -63,12 +67,16 @@ class Runtime:
                 if strict:
                     raise
                 return False
+            self.wallets.restore()
+            self.wallets.rabdi.restore()
             self.recovered = True
             self.recovery_error = None
         return True
 
     async def run_once(self):
         self.recover()
+        if self.store.backend == "arkiv":
+            self.store.reconcile_checkpoints()
         if task := self.store.claim():
             await self.engine.work(task)
             return True
@@ -80,6 +88,8 @@ class Runtime:
                 if not self.recover(strict=False):
                     await asyncio.sleep(1)
                     continue
+                if self.store.backend == "arkiv":
+                    self.store.reconcile_checkpoints()
                 if self.store.backend == "arkiv" and time.monotonic() - self.last_maintenance > 3600:
                     self.store.maintain()
                     self.last_maintenance = time.monotonic()
@@ -97,7 +107,7 @@ class Runtime:
                         }:
                             try:
                                 await self.wallets.status(row["user_id"], payment["id"])
-                            except ValueError:
+                            except (ValueError, ArkivError):
                                 pass  # An RPC failure is not permission to repeat a payment.
                 while len(self.jobs) < self.config.max_parallel_tasks and (task := self.store.claim()):
                     job = asyncio.create_task(self.engine.work(task))
