@@ -82,10 +82,23 @@ class Engine:
             data["recent_channel_messages"] = [
                 {"event_id": row["id"], "task_id": row["task_id"], **json.loads(row["data"])} for row in reversed(rows)
             ]
-        if hasattr(self, "lending") and self.lending.mode != "off":
+        if hasattr(self, "lending"):
+            data["lending_mode"] = self.lending.mode
             data["lending_rules"] = (
-                "Use lending tools for test-token management. Collect only missing settings. "
+                "All user interactions use natural language. Never require slash commands, JSON, shell commands "
+                "or technical approval codes. Interpret the user's request and CALL the matching tools. "
+                "For 'manage/invest my tokens', 'set up CRE' or 'get started', check lending_setup_status; "
+                "if needs_setup, call lending_prepare_setup and show its exact review. If setup is ready, "
+                "call lending_create_plan, using days/check_interval_seconds from the request. "
+                "Setup is separate from the management plan and moves no tokens. Never claim setup is complete "
+                "until the tool confirms ready. If deploying, give status rather than proposing another setup. "
+                "For 'start managing' after plan approval call lending_start. For 'stop/pause management' "
+                "call lending_pause; for 'withdraw/return my managed tokens' call lending_withdraw; for "
+                "'what is happening/how is it doing' call lending_status; for market comparisons call "
+                "lending_markets; for holdings call wallet_balances or lending_portfolio. "
+                "Collect only missing settings; use the verified beginner preset when none were supplied. "
                 "The user must explicitly approve the exact review from WhatsApp. Models cannot approve. "
+                "They can reply naturally, such as 'go ahead', 'yes' or 'approve'. "
                 "Never give shell commands or raw calldata for lending. Do not call start, pause or withdraw "
                 "unless the user requests that action. Routine scheduling is handled by the application. "
                 "Keep mock execution, testnet reads, projected interest and confirmed receipts distinct. "

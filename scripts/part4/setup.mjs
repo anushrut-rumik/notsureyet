@@ -53,11 +53,13 @@ try{
     if(action.creates&&receipt.contractAddress?.toLowerCase()!==action.creates.toLowerCase())throw Error('Deployment address mismatch');
     db.prepare("UPDATE actions SET state='confirmed' WHERE id=?").run(action.id);continue;
    }
+   if(request.reconcileOnly){console.log(JSON.stringify({status:'paused'}));complete=false;break;}
    const nonces=await Promise.all(['latest','pending'].map(blockTag=>rpc.getTransactionCount({address:owner,blockTag})));
    if(nonces.some(n=>n!==action.nonce))throw Error('Setup nonce drift; reconcile existing transactions');
    const gas=await rpc.estimateGas({account:owner,to:action.to??undefined,data:action.data,value:0n});
    const gasPrice=await rpc.getGasPrice(),limit=(gas*120n+99n)/100n;
    if(limit*gasPrice>10000000000000000n)throw Error('Setup gas cap exceeded');
+   if(await rpc.getBalance({address:owner,blockTag:'pending'})<limit*gasPrice)throw Error('Insufficient setup gas balance');
    const raw=await account.signTransaction({chainId:Number(action.chainId),nonce:action.nonce,to:action.to??undefined,
     data:action.data,value:0n,gas:limit,gasPrice,type:'legacy'}),hash=keccak256(raw);
    db.prepare('INSERT INTO actions VALUES(?,?,?,?,?)').run(action.id,hash,'unknown',JSON.stringify(action),raw);

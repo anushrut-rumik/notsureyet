@@ -5,6 +5,7 @@ import re
 import time
 from decimal import Decimal
 
+from agent.approval_language import is_approval
 from agent.wallet import Wallets
 
 
@@ -32,7 +33,7 @@ class ChatCommands:
                 continue
             text = message.get("content", "")
             # A different approval flow must not fall back to an older payment.
-            if "approve lending " in text.lower():
+            if "approve lending " in text.lower() or "Plan reference:" in text or "Setup reference:" in text:
                 return None
             codes = set(re.findall(r"\bapprove\s+([0-9a-f]{12})\b", text, re.I))
             if codes:
@@ -86,6 +87,9 @@ class ChatCommands:
         )
 
     async def handle(self, user, text, *, user_event=None):
+        setup_reply = await self.runtime.lending_onboarding.handle(user, text, user_event)
+        if setup_reply is not None:
+            return setup_reply
         lending_reply = await self.runtime.lending.handle(user, text, user_event)
         if lending_reply is not None:
             return lending_reply
@@ -186,11 +190,13 @@ class ChatCommands:
             )
             return self.review(payment)
         short = re.fullmatch(r"/?(approve|reject)(?:\s+(?:it|this))?[.!]?", command, re.I)
-        if short:
+        if short or is_approval(command):
             code = self.recent_approval_code(user)
             if not code:
+                if not short:
+                    return None  # A conversational "yes" is not necessarily a payment approval.
                 return "There isn't a clear payment review to approve in this chat. Ask me to show the payment first."
-            command = f"{short[1]} {code}"
+            command = f"{short[1] if short else 'approve'} {code}"
         match = re.fullmatch(r"/?(approve|reject)\s+([0-9a-fo]{12})", command, re.I)
         if match:
             # Codes are hexadecimal, so O can only mean zero. Do not fuzzy-match

@@ -381,7 +381,7 @@ async def test_tools_require_authenticated_context_and_forbid_identity_overrides
     result = await runtime.registry.execute(ctx, {"function": {"name": "lending_status", "arguments": "{}"}})
     assert not result["ok"] and "authenticated WhatsApp" in result["error"]
     schemas = [t for t in runtime.registry.schemas("chat") if t["function"]["name"].startswith("lending_")]
-    assert len(schemas) == 7
+    assert len(schemas) == 9
     for tool in schemas:
         properties = tool["function"]["parameters"]["properties"]
         assert not {"user_id", "wallet", "recipient", "approved", "calldata", "command"}.intersection(properties)

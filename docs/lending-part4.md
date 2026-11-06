@@ -4,9 +4,34 @@ Updated 2026-11-07. The live funding, approved automatic execution and principal
 withdrawal paths are implemented. The user selected their existing encrypted
 agent wallet as owner. Local contract and fault-injection tests pass. **Live
 acceptance is still pending:** the owner wallet is funded, but the new compatible
-wallets have not been deployed and lending mode remains off. Real MetaMask funding
+wallets have not been deployed. Real MetaMask funding
 has been verified; live strategy deposit, cross-chain movement and withdrawal
-have not yet been demonstrated.
+have not yet been demonstrated. Setup and management can now be requested through
+natural language in the authenticated WhatsApp chat; no slash commands are needed.
+
+## WhatsApp conversation
+
+Say: "Set up my agent to manage my test tokens with CRE."
+The existing OpenAI model selects the setup tools. The agent shows the actual
+contract addresses, owner and gas limits before asking for approval. Reply
+"go ahead", "yes please" or "approve". The raw incoming reply authorizes only the
+latest setup review in that user's chat; the model cannot authorize deployment.
+The worker deploys and reconciles each saved transaction, then announces readiness.
+Repeating approval does not deploy again. Pausing setup stops new transactions
+while existing submitted transactions continue to be checked.
+
+Then say: "Manage my test tokens for 30 days and check every minute."
+The agent shows the management plan, including the verified deposit and reserve
+limits. Approve that review, then say "start managing my tokens". Ask "what is
+happening with my tokens?", "compare the pools", "pause management", or "return
+my managed tokens to my wallet" for the corresponding actions. These requests
+use the same typed tools and receipt checks as the diagnostic command interface.
+
+The application must have `AGENT_LENDING_MODE=testnet` and
+`AGENT_LENDING_EVALUATOR=cre`. Chat-driven setup writes a binding file beneath
+`.local/lending-setup/<user-hash>/`; it is selected automatically for that user.
+`AGENT_LENDING_BINDINGS` remains an optional operator override for existing
+deployments. Setup is still separate from approval to deposit or manage tokens.
 
 ## What a user can do now
 
@@ -17,12 +42,13 @@ scheduled hold/move results, track transit and destination confirmation, inspect
 balances, pause and withdraw to their bound fixture wallet. Mock receipts are
 local ledger records, never transaction hashes or evidence of a real deposit.
 
-The same seven typed tools are registered with the existing Python agent:
+Nine typed tools are registered with the existing Python agent:
 `lending_portfolio`, `lending_markets`, `lending_create_plan`, `lending_start`,
-`lending_pause`, `lending_withdraw`, and `lending_status`. Normal language can use
+`lending_pause`, `lending_withdraw`, `lending_status`, `lending_setup_status` and
+`lending_prepare_setup`. Normal language uses
 the existing model/tool loop. The deterministic command flow also runs without
 model inference. No new inference provider, wallet provider or dashboard exists.
-Live model selection of these tools has not been tested.
+Live OpenAI tool selection has been tested without executing transactions.
 
 `PlanSettings` accepts integer token units as strings, a horizon in days and a
 check interval. Beginner settings and expert settings pass through that schema,
@@ -91,8 +117,9 @@ keep the schedule running: a local cron simulation fires once. See the official
 [simulation guide](https://docs.chain.link/cre/guides/operations/simulating-workflows)
 and [consensus explanation](https://docs.chain.link/cre/concepts/consensus-computing).
 
-## Commands and expert configuration
+## Diagnostic commands and expert configuration
 
+These commands remain available for debugging. Normal users speak naturally.
 The existing provider command channel accepts:
 
 ```text
@@ -298,18 +325,18 @@ and original data directory to resume tracking. No new wallet or provider login
 is needed if the existing configured connection remains available. `cre whoami`
 checks the existing CRE login; if it expires, the user completes `cre login`.
 
-In the approved WhatsApp test chat:
+In the approved WhatsApp test chat, use ordinary messages:
 
 ```text
-/lending plan
+Manage my test tokens for 30 days and check every minute.
 [read the actual review]
-approve
-/lending start
-/lending status
+Go ahead.
+Start managing my tokens.
+What is happening with my tokens?
 [wait for funding receipts, scheduled evaluation and destination confirmation]
-/lending pause
-/lending withdraw
-/lending status
+Pause management.
+Return my managed tokens to my wallet.
+Has the withdrawal finished?
 ```
 
 Plain `approve` binds to the latest plan review in that authenticated chat. The

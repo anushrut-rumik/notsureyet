@@ -13,6 +13,7 @@ from agent.chat_errors import record_chat_error
 from agent.config import Config
 from agent.engine import Engine
 from agent.lending import Lending, register_lending_tools
+from agent.lending_onboarding import LendingOnboarding
 from agent.payments import register_payment_tools
 from agent.providers import Models
 from agent.tools import Registry, register_builtins
@@ -33,8 +34,7 @@ class Runtime:
         register_payment_tools(self.registry)
         register_simulation_tools(self.registry)
         register_deployment_tools(self.registry)
-        if config.env.get("AGENT_LENDING_MODE", "off") != "off":
-            register_lending_tools(self.registry)
+        register_lending_tools(self.registry)
         for module in config.tool_modules:
             importlib.import_module(module).register_tools(self.registry)
         self.engine = Engine(config, self.store, self.models, self.registry)
@@ -44,6 +44,7 @@ class Runtime:
         self.engine.wallets = self.wallets
         self.lending = Lending(self)
         self.engine.lending = self.lending
+        self.lending_onboarding = LendingOnboarding(self.lending)
         self.commands = ChatCommands(self)
         self.jobs = set()
         self.recovered = False
@@ -94,6 +95,7 @@ class Runtime:
     async def worker(self):
         try:
             while True:
+                await self.lending_onboarding.tick()
                 await self.lending.tick()
                 if not self.recover(strict=False):
                     await asyncio.sleep(1)

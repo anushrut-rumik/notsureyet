@@ -310,3 +310,14 @@ scheduling, recovery and the live agent-wallet broker. Automatic policy executio
 funding/deposit and principal withdrawal are implemented and locally tested. The
 selected wallet still needs faucet funding and new compatible deployments; the
 full live WhatsApp/CCIP/withdrawal acceptance remains pending.
+# Conversational strategy management
+
+In the configured WhatsApp chat, say "Set up my agent to manage my test tokens
+with CRE." Review the owner, contracts and gas limits, then reply "go ahead".
+The agent tracks setup and tells you when the strategy is ready. Then ask
+"Manage my test tokens for 30 days and check every minute", approve the shown
+plan, and say "start managing my tokens". Status, pool comparisons, pause and
+withdrawal also accept ordinary language. No slash commands are required.
+
+This uses testnet mock pools and local CRE execution, not earned yield or a
+deployed decentralized workflow. See [the Part 4 runbook](docs/lending-part4.md).

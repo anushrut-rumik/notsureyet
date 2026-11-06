@@ -17,6 +17,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
+from agent.approval_language import is_approval
+
 CHAINS = ("11155111", "84532")
 NAMES = {"11155111": "Ethereum Sepolia", "84532": "Base Sepolia"}
 TERMINAL = {"verified_deposit", "confirmed", "cancelled"}
@@ -187,10 +189,11 @@ class Lending:
 
     async def testnet_portfolio(self, user, wallet):
         # Server-owned mapping, never a tool/model supplied manifest path.
-        path = self.runtime.config.env.get("AGENT_LENDING_BINDINGS")
-        if not path:
+        path = self.bindings_path(user)
+        if not path.exists():
             raise ValueError(
-                "Testnet dependency unavailable: configure AGENT_LENDING_BINDINGS with verified deployments."
+                "Strategy setup is not complete. Use lending_prepare_setup to review setup in this chat. "
+                "AGENT_LENDING_BINDINGS is not available yet."
             )
         bindings = json.loads(await asyncio.to_thread(Path(path).read_text))
         manifest = bindings.get(user)
@@ -223,6 +226,13 @@ class Lending:
             raise ValueError("Testnet observations unavailable or wallet binding failed. No action admitted.")
         return json.loads(out)
 
+    def setup_directory(self, user):
+        return self.runtime.config.data_dir / "lending-setup" / hashlib.sha256(user.encode()).hexdigest()
+
+    def bindings_path(self, user):
+        configured = self.runtime.config.env.get("AGENT_LENDING_BINDINGS")
+        return Path(configured) if configured else self.setup_directory(user) / "bindings.json"
+
     @staticmethod
     def pending(state):
         return next((o for o in state["operations"] if o["state"] not in TERMINAL), None)
@@ -254,7 +264,7 @@ class Lending:
             )
         )
 
-    async def create_plan(self, user, settings=None, *, preset_days=30):
+    async def create_plan(self, user, settings=None, *, preset_days=30, preset_interval=3600):
         async with self.lock(user):
             state = self.read(user)
             wallet = self.binding(user, state)
@@ -282,7 +292,10 @@ class Lending:
                         "a chat instruction cannot supply tokens. Then ask for a plan again."
                     )
                 reserve = available // 5
-                settings = {"amountUnits": str(available - reserve), "reserveUnits": str(reserve), "days": preset_days}
+                settings = {
+                    "amountUnits": str(available - reserve), "reserveUnits": str(reserve),
+                    "days": preset_days, "checkIntervalSeconds": preset_interval,
+                }
                 if self.mode == "testnet":
                     deployment = observed["chains"][source]
                     settings.update(
@@ -326,7 +339,7 @@ class Lending:
                 "approvalEvent": None,
             }
             if self.mode == "testnet":
-                path = self.runtime.config.env.get("AGENT_LENDING_BINDINGS")
+                path = self.bindings_path(user)
                 bindings = json.loads(await asyncio.to_thread(Path(path).read_text))
                 binding = bindings[user]
                 plan["executionBinding"] = {
@@ -386,7 +399,7 @@ class Lending:
             "current testnet to your verified wallet; no bank cash-out. "
             "Routine permitted moves need no new chat approval.\n"
             "Reply approve to approve this exact plan.\n"
-            f"Plan reference: approve lending {plan['id']} {plan['version']} {plan['digest'][:12]}"
+            f"Plan reference: {plan['id']} {plan['version']} {plan['digest'][:12]}"
         )
 
     def latest_review_command(self, user, event_id):
@@ -400,7 +413,14 @@ class Lending:
             if message.get("role") != "assistant":
                 continue
             content = message.get("content", "")
-            matches = set(re.findall(r"approve lending [a-f0-9]{32} [0-9]+ [a-f0-9]{12}", content))
+            if "Setup reference:" in content:
+                return None
+            matches = {
+                "approve lending " + value
+                for value in re.findall(
+                    r"(?:approve lending |Plan reference: )([a-f0-9]{32} [0-9]+ [a-f0-9]{12})", content
+                )
+            }
             if matches:
                 return next(iter(matches)) if len(matches) == 1 else None
             if re.search(r"\bapprove\s+[a-f0-9]{12}\b", content, re.I):
@@ -426,7 +446,7 @@ class Lending:
                 raise ValueError("Lending approval requires an explicit message from the authenticated WhatsApp user.")
             selected = (
                 self.latest_review_command(user, event_id)
-                if re.fullmatch(r"/?approve(?:\s+(?:it|this))?[.!]?", text, re.I)
+                if is_approval(text)
                 else text
             )
             if not plan or selected != f"approve lending {plan['id']} {plan['version']} {plan['digest'][:12]}":
@@ -441,7 +461,7 @@ class Lending:
             plan["policy"]["approvedAt"] = str(int(self.clock()))
             self.save(user, state)
             return (
-                "Exact plan approved. No funds were created or moved. Use /lending start to verify funding and deposit."
+                "Plan approved. No funds have moved yet. Say 'start managing my tokens' to fund and deposit."
             )
 
     def require_approved(self, state):
@@ -743,6 +763,8 @@ class Lending:
         async with self.lock(user):
             state = self.read(user)
             self.binding(user, state)
+            if not state["plan"]:
+                return
             if self.mode == "testnet" and state["plan"] and state["plan"]["approvalEvent"]:
                 from agent.lending_live import execute
 
@@ -821,7 +843,7 @@ class Lending:
                         self.store.notice(
                             row[0],
                             "Lending dependency unavailable. New actions stopped; "
-                            "existing operations remain recorded. Inspect /lending status.",
+                            "existing operations remain recorded. Ask me what is happening with your tokens.",
                         )
                     state["error"] = code
                     self.save(row[0], state)
@@ -969,7 +991,7 @@ class Lending:
         if self.mode == "off":
             return None
         command = text.strip()
-        if re.fullmatch(r"/?approve(?:\s+(?:it|this))?[.!]?", command, re.I) and event_id:
+        if is_approval(command) and event_id:
             if self.latest_review_command(user, event_id):
                 self.authenticate(user, event_id)
                 return await self.approve(user, command, event_id)
@@ -1020,30 +1042,63 @@ def register_lending_tools(registry):
         return await service(ctx).portfolio(ctx.user_id)
 
     @registry.tool(evidence=True, modes=("chat",))
+    async def lending_setup_status(ctx):
+        """Check whether this user's strategy setup is ready, deploying, or needs review. Use before first use."""
+        lending = service(ctx)
+        return await lending.runtime.lending_onboarding.status(ctx.user_id)
+
+    @registry.tool(modes=("chat",))
+    async def lending_prepare_setup(ctx):
+        """When the user wants token management, prepare any missing strategy setup and show its exact review.
+
+        Does not deploy or authorize spending. The user approves in their own words in WhatsApp.
+        """
+        lending = service(ctx)
+        result = await lending.runtime.lending_onboarding.prepare(ctx.user_id)
+        if result.get("review"):
+            ctx.review_response = result["review"]
+        return result
+
+    @registry.tool(evidence=True, modes=("chat",))
     async def lending_markets(ctx):
         """Compare the two approved testnet mock lending markets. Rates vary; they are not realized returns."""
         return await service(ctx).markets(ctx.user_id)
 
     @registry.tool(modes=("chat",))
-    async def lending_create_plan(ctx, settings: PlanSettings | None = None):
+    async def lending_create_plan(
+        ctx, settings: PlanSettings | None = None, days: int = 30, check_interval_seconds: int = 3600
+    ):
         """Propose a test plan using explicit expert settings or a labelled beginner preset. Show its exact review.
 
-        Never substitute user identity, wallet, destinations or approval. User must send the exact approval reply.
+        Use days and check_interval_seconds for everyday requests; amounts/reserves come from verified deployments.
+        Never substitute identity, wallets or approval. Show the review, then accept a natural approval reply.
         """
         values = settings.model_dump() if isinstance(settings, PlanSettings) else settings
-        proposed = await service(ctx).create_plan(ctx.user_id, values)
+        lending = service(ctx)
+        if lending.mode == "testnet" and not lending.bindings_path(ctx.user_id).exists():
+            result = await lending.runtime.lending_onboarding.prepare(ctx.user_id)
+            if result.get("review"):
+                ctx.review_response = result["review"]
+            return result
+        proposed = await lending.create_plan(
+            ctx.user_id, values, preset_days=days, preset_interval=check_interval_seconds
+        )
         ctx.review_response = proposed["review"]
         return proposed
 
     @registry.tool(modes=("chat",))
     async def lending_start(ctx):
         """Start only an already explicitly approved plan. Verify funds and initial deposit before management."""
-        return await service(ctx).start(ctx.user_id)
+        lending = service(ctx)
+        setup = await lending.runtime.lending_onboarding.control(ctx.user_id, pause=False)
+        return setup if setup else await lending.start(ctx.user_id)
 
     @registry.tool(modes=("chat",))
     async def lending_pause(ctx):
         """Pause when requested: cancel unsubmitted operations; continue tracking submitted transfers."""
-        return await service(ctx).pause(ctx.user_id)
+        lending = service(ctx)
+        setup = await lending.runtime.lending_onboarding.control(ctx.user_id, pause=True)
+        return setup if setup else await lending.pause(ctx.user_id)
 
     @registry.tool(modes=("chat",))
     async def lending_withdraw(ctx):
@@ -1053,4 +1108,7 @@ def register_lending_tools(registry):
     @registry.tool(evidence=True, modes=("chat",))
     async def lending_status(ctx, operation_id: str = ""):
         """Inspect this user's plan or operation, pending tokens, separate fee quantities and projected returns."""
-        return await service(ctx).status(ctx.user_id, operation_id or None)
+        lending = service(ctx)
+        if lending.mode == "testnet" and not lending.bindings_path(ctx.user_id).exists():
+            return await lending.runtime.lending_onboarding.status(ctx.user_id)
+        return await lending.status(ctx.user_id, operation_id or None)

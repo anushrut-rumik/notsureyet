@@ -26,9 +26,9 @@ async def execute(service, user, state, action):
         service.require_approved(state)
         if plan["status"] not in {"approved", "awaiting_deposit", "active"}:
             raise ValueError("This policy is stopped.")
-    path = service.runtime.config.env.get("AGENT_LENDING_BINDINGS")
-    if not path:
-        raise ValueError("Configure the verified agent-owned deployments in AGENT_LENDING_BINDINGS first.")
+    path = service.bindings_path(user)
+    if not path.exists():
+        raise ValueError("Strategy setup is not complete. Ask me to set up token management first.")
     bindings = json.loads(await asyncio.to_thread(Path(path).read_text))
     manifest = bindings.get(user)
     if not manifest or manifest.get("owner", "").lower() != wallet["address"].lower():

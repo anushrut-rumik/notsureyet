@@ -626,7 +626,11 @@ comparisons invoke local CRE; permitted moves use the existing CRE report path.
 
 **Deployment/acceptance remains pending:** the 2026-11-07 read-only check found
 1 CCIP-BnM on Sepolia, 0.2 CCIP-BnM on Base, and test ETH and LINK on both chains.
-The new strategy contracts remain undeployed and lending mode is off. A user-run
+The new strategy contracts remain undeployed. Authenticated WhatsApp users can
+request setup in natural language, review the exact deployment and approve it
+with an ordinary reply. The worker then reconciles the setup journal and writes
+that user's binding. The existing OpenAI model routes management, status, pause
+and withdrawal requests to typed tools; no slash commands are required. A user-run
 launcher prepares and deploys compatible new wallets and produces the server
 binding file. It preserves old MetaMask deployments. Real WhatsApp connection was
 checked successfully, and MetaMask funding was verified. New strategy deployment,
