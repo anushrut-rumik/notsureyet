@@ -26,6 +26,7 @@ class Context:
     stopped: bool = False
     payment_response: str | None = None
     started_tasks: list[str] = field(default_factory=list)
+    interaction: object | None = None
 
     @property
     def store(self):

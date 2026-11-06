@@ -185,6 +185,33 @@ async def test_old_provider_state_is_not_sent_to_openai(config):
         await models.close()
 
 
+@pytest.mark.parametrize("role,fields", [
+    ("chat", ["emoji_reaction", "response_messages"]), ("reaction", ["label", "confidence"]),
+])
+async def test_chat_and_quick_reaction_request_structured_fields_in_order(config, role, fields):
+    bodies = []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json=response())
+
+    models = mock_models(config, respond)
+    try:
+        await models.complete(role, [{"role": "user", "content": "Hi"}], [])
+        [body] = bodies
+        output_format = body["text"]["format"]
+        assert output_format["strict"] is True
+        assert output_format["type"] == "json_schema"
+        assert list(output_format["schema"]["properties"]) == fields
+        assert output_format["schema"]["required"] == fields
+        if role == "reaction":
+            assert body["max_output_tokens"] == 128
+            assert body["reasoning"] == {"effort": "none"}
+            assert "tools" not in body
+    finally:
+        await models.close()
+
+
 async def test_catalog_checks_model_access_without_paid_inference(config):
     requests = []
 

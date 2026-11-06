@@ -54,6 +54,37 @@ async def test_natural_wallet_creation_uses_tool_and_returns_result_without_task
         await runtime.close()
 
 
+async def test_task_writer_sees_bounded_private_channel_context_and_shared_style(config):
+    from agent.prompts import MESSAGE_STYLE
+
+    def ask_about_change(_role, messages, _tools):
+        prompt = messages[0]["content"]
+        context = json.loads(prompt.rsplit("\n", 1)[-1])
+        recent = context["recent_channel_messages"]
+        assert len(recent) == 24
+        assert recent[-1]["content"] == "delivery moved to tomorrow. the price is unchanged"
+        assert all(message["content"] != "old delivery details" for message in recent)
+        assert "other user's private result" not in prompt
+        assert MESSAGE_STYLE in prompt
+        return call("ask_user", question="delivery moved to tomorrow. does the new time work?")
+
+    runtime = Runtime(config, Script(ask_about_change))
+    try:
+        runtime.store.notice("u", "old delivery details")
+        for i in range(24):
+            runtime.store.notice("u", f"earlier update {i}")
+        runtime.store.notice("other", "other user's private result")
+        runtime.store.notice("u", "delivery moved to tomorrow. the price is unchanged")
+        task = runtime.store.create_task("u", "Delivery", "Check delivery time", "Delivery time confirmed")
+        assert await runtime.run_once()
+        assert runtime.store.task("u", task["id"])["status"] == "needs_input"
+        assert runtime.store.events("u", kind="chat_message")[-1]["data"]["content"] == (
+            "delivery moved to tomorrow. does the new time work?"
+        )
+    finally:
+        await runtime.close()
+
+
 async def test_background_question_and_answer_resume_same_task_to_verified_completion(config):
     models = Script(call("ask_user", question="Which drink should the report cover?"))
     runtime = Runtime(config, models)
@@ -173,7 +204,8 @@ async def test_whatsapp_plain_chat_failure_and_recovery_are_delivered_once(confi
     sent = []
 
     def send(request):
-        sent.append(json.loads(request.content))
+        if request.url.path.startswith("/send/"):
+            sent.append(json.loads(request.content))
         return httpx.Response(200, json={"id": str(len(sent))})
 
     runtime = Runtime(config, Script(failed, Answer("Hi! What would you like me to do?")))

@@ -10,6 +10,7 @@ import pytest
 
 from agent.chat_errors import chat_error_message, record_chat_error
 from agent.inference import InferenceError
+from agent.providers import Answer
 from agent.runtime import Runtime
 from agent.whatsapp import IraWhatsApp
 from tests.test_agent import Script
@@ -32,7 +33,8 @@ def adapter(runtime, sent):
             pass
 
     def respond(request):
-        sent.append(json.loads(request.content)["text"])
+        if request.url.path.startswith("/send/"):
+            sent.append(json.loads(request.content)["text"])
         return httpx.Response(200, json={"id": "reply"})
 
     return IraWhatsApp(
@@ -71,7 +73,7 @@ async def test_failed_error_notice_is_recovered_once_without_replaying_the_input
     original_notice = runtime.store.notice
     calls = []
 
-    async def failed(*args):
+    async def failed(*args, **kwargs):
         calls.append(1)
         raise sqlite3.OperationalError("database or disk is full")
 
@@ -125,7 +127,8 @@ async def test_slow_live_chat_gets_progress_and_is_not_mistaken_for_an_interrupt
     config.env["AGENT_WHATSAPP_PROGRESS_SECONDS"] = "0.01"
     release = asyncio.Event()
 
-    async def slow(user, text):
+    async def slow(user, text, **kwargs):
+        await kwargs["interaction"].working()
         await release.wait()
         runtime.store.notice(user, "The check is complete.")
 
@@ -155,6 +158,8 @@ async def test_chat_inference_deadline_does_not_retry_or_replay_tools(config):
     attempts = []
 
     async def slow(*args):
+        if args[0] == "reaction":
+            return Answer('{"label":"none"}')
         attempts.append(1)
         await asyncio.Event().wait()
 

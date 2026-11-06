@@ -22,6 +22,28 @@ The model decides which task a reply concerns. If multiple tasks could match, it
 instructions require clarification. This is not a deterministic guarantee of intent
 recognition. Tool ownership checks still prevent accessing another user's task.
 
+## Outgoing message style
+
+Chat replies, task acknowledgements, and model-written task questions, updates and
+results share the writing prompt in `agent/prompts.py`. Messages lead with the
+useful answer or change, use natural lowercase prose while preserving names and
+exact values, and keep related information in one bubble. Longer answers use
+blank lines or short lists. The prompt discourages headings, tables, decorative
+formatting, emoji in message bodies, repeated updates and generic closing offers.
+It asks for enough substance to answer the request and preserves uncertainty and
+the difference between planned, pending and completed actions.
+
+The existing JSON reply contract stays in place: each `response_messages` entry
+is one bubble, and `emoji_reaction` is separate. The `---` separator from the
+original writing prompt is represented by array entries rather than sent as text.
+Both chat and task writers receive the latest 24 channel messages for the same
+user so they can account for replies from other parts of the system.
+
+Exact payment reviews, approval codes and signing instructions retain their
+original text. Fixed command replies and error diagnostics also retain their
+existing formatting. This is a generation prompt, not a text filter that changes
+case or strips punctuation from outgoing facts, addresses, links or codes.
+
 ## Arkiv remains authoritative
 
 A chat prompt uses a bounded local execution snapshot to help route replies.

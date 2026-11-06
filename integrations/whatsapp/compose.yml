@@ -29,6 +29,10 @@ services:
       context: ../../rc-harness copy/ira/wa
     image: notsureyet-whatsapp:local
     env_file: ../../.local/whatsapp.env
+    environment:
+      # Await the actual read operation before exposing a reaction. The adapter
+      # supplies its own short reaction delay; the sidecar must not defer reads.
+      WA_LINE_READ_DELAY_MS: "0"
     ports:
       - "127.0.0.1:58083:8080"
     depends_on:

@@ -9,6 +9,7 @@ from openai import APIConnectionError, APIStatusError, AsyncOpenAI
 
 from agent.config import Config
 from agent.inference import InferenceError, inference_error
+from agent.reactions import decision_schema, reply_schema
 
 
 @dataclass
@@ -77,6 +78,7 @@ class Models:
         name, endpoint = self.config.endpoint(role)
         native_id = f"{name}:{endpoint.model}"
         client = self.client(name, endpoint)
+        schema = decision_schema() if role == "reaction" else reply_schema() if role == "chat" else None
         if endpoint.protocol == "chat_completions":
             clean = []
             for message in messages:
@@ -89,6 +91,10 @@ class Models:
                     }
                 )
             options = {"model": endpoint.model, "messages": clean, **endpoint.options}
+            if schema and endpoint.provider == "openai":
+                options["response_format"] = {
+                    "type": "json_schema", "json_schema": {"name": role, "strict": True, "schema": schema},
+                }
             if tools:
                 options.update(tools=tools, tool_choice="auto")
             raw = await client.chat.completions.with_raw_response.create(**options)
@@ -148,6 +154,10 @@ class Models:
             }
             if tools:
                 options["tools"] = [{"type": "function", **tool["function"], "strict": False} for tool in tools]
+            if schema and endpoint.provider == "openai":
+                options["text"] = {"format": {
+                    "type": "json_schema", "name": role, "strict": True, "schema": schema,
+                }}
             response = await client.responses.create(**options)
             if response.status != "completed" or any(
                 getattr(item, "status", None) in {"incomplete", "in_progress"} for item in response.output

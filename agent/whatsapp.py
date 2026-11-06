@@ -16,12 +16,45 @@ import httpx
 from agent.chat_errors import chat_error_message
 
 
+class WhatsAppTurn:
+    """The channel actions for one original user message."""
+
+    def __init__(self, adapter, event, reactions):
+        self.adapter, self.event, self.reactions = adapter, event, reactions
+        self.typing = False
+        self.metadata = {
+            "name": "whatsapp", "chat": event["chat"], "message_id": event["id"],
+            # Direct-message receipts/reactions key the address from the chat.
+            # The stable LID identifies the owner; it may be a different address.
+            "sender": event["chat"],
+        }
+
+    async def read(self):
+        return await self.adapter.signal("read", {
+            "chat": self.event["chat"], "ids": [self.event["id"]], "sender": self.metadata["sender"],
+        })
+
+    async def working(self):
+        self.adapter.working_chats.add(self.event["chat"])
+        if not self.typing:
+            self.typing = await self.adapter.signal("typing", {"to": self.event["chat"], "on": True})
+
+    async def finish(self):
+        requested = self.event["chat"] in self.adapter.working_chats
+        self.adapter.working_chats.discard(self.event["chat"])
+        if requested:
+            # An on-request can time out after succeeding at the sidecar.
+            await self.adapter.signal("typing", {"to": self.event["chat"], "on": False})
+            self.typing = False
+
+
 class IraWhatsApp:
     group = "ira-web3-agent"
 
     def __init__(self, runtime, *, redis=None, http=None):
         self.runtime = runtime
         self.active_inputs = set()
+        self.working_chats = set()
         env = runtime.config.env
         required = [
             "AGENT_WHATSAPP_LINE",
@@ -69,7 +102,16 @@ class IraWhatsApp:
             else:
                 runtime.store.db.execute("INSERT INTO sqlite_sequence(name,seq) VALUES('events',?)", (floor,))
 
-    async def receive(self, event):
+    async def signal(self, action, data):
+        try:
+            async with asyncio.timeout(2):
+                response = await self.http.post(f"/{action}/{quote(self.line, safe='')}", json=data)
+                response.raise_for_status()
+            return True
+        except Exception:
+            return False  # Presence and read failures must not fail or repeat the user's work.
+
+    def eligible(self, event):
         if (
             event.get("type") != "message"
             or event.get("user") != self.line
@@ -89,13 +131,21 @@ class IraWhatsApp:
                     "forwarded_many",
                     "vote",
                     "media",
+                    "card_tap",
+                    "poll_answer",
+                    "reaction",
+                    "paused",
+                    "muted",
                 )
             )
         ):
             return False
-        text = event.get("text", "").strip()
-        if not text:
+        return isinstance(event.get("text"), str) and bool(event["text"].strip())
+
+    async def receive(self, event, *, reactions=True):
+        if not self.eligible(event):
             return False
+        text = event["text"].strip()
         # LID is WhatsApp's stable account identity; a recycled phone number does not inherit its wallet.
         user = "wa:" + hashlib.sha256(f"{self.line}:{event['sender_lid']}".encode()).hexdigest()
         key = f"{self.line}:{event['chat']}:{event['id']}"
@@ -109,15 +159,16 @@ class IraWhatsApp:
             )
         # A crashed processing entry is not replayed automatically. The user can query tasks/receipts.
         self.active_inputs.add(key)
-        chat = asyncio.create_task(self.runtime.chat(user, text))
+        turn = WhatsAppTurn(self, event, reactions)
+        chat = asyncio.create_task(self.runtime.chat(user, text, interaction=turn))
         recorded = True
         try:
             delay = float(self.runtime.config.env.get("AGENT_WHATSAPP_PROGRESS_SECONDS") or 15)
             done, _ = await asyncio.wait({chat}, timeout=delay)
-            if not done:
+            if not done and turn.typing:
                 try:
                     self.runtime.store.notice(
-                        user, "I'm still checking your request. I haven't confirmed completion yet."
+                        user, "still checking. no confirmed result yet"
                     )
                 except (sqlite3.Error, OSError):
                     pass
@@ -132,6 +183,7 @@ class IraWhatsApp:
                 chat.cancel()
                 await asyncio.gather(chat, return_exceptions=True)
             self.active_inputs.discard(key)
+            await turn.finish()
         try:
             with self.db:
                 self.db.execute(
@@ -181,19 +233,38 @@ class IraWhatsApp:
     async def deliver_once(self):
         self.recover_interrupted()
         for user, chat, cursor in self.db.execute("SELECT user_id,chat,cursor FROM routes").fetchall():
-            for event in self.runtime.store.events(user, after=cursor, kind="chat_message"):
-                if event["data"].get("role") != "assistant":
+            for event in self.runtime.store.events(user, after=cursor):
+                reaction = event["kind"] == "chat_reaction"
+                written = event["kind"] == "chat_message" and event["data"].get("role") == "assistant"
+                if not reaction and not written:
                     with self.db:
                         self.db.execute("UPDATE routes SET cursor=? WHERE user_id=?", (event["id"], user))
                     continue
+                path, payload = "send", {"to": chat, "text": event["data"].get("content", "")}
+                if reaction:
+                    original = self.runtime.store.events(user, after=event["data"]["message_event_id"] - 1, limit=1)
+                    channel = original[0]["data"].get("channel", {}) if original else {}
+                    if channel.get("name") != "whatsapp" or channel.get("chat") != chat:
+                        with self.db:
+                            self.db.execute("UPDATE routes SET cursor=? WHERE user_id=?", (event["id"], user))
+                        continue
+                    path, payload = "react", {
+                        "chat": chat, "id": channel["message_id"], "sender": channel["sender"],
+                        "from_me": False, "emoji": event["data"]["emoji_reaction"],
+                    }
                 existing = self.db.execute("SELECT 1 FROM deliveries WHERE event_id=?", (event["id"],)).fetchone()
                 if not existing:
                     # Record admission before HTTP. A timeout may follow delivery; never blindly send twice.
                     with self.db:
                         self.db.execute("INSERT INTO deliveries VALUES(?, 'unknown', NULL)", (event["id"],))
                     try:
+                        if written:
+                            # Once there are words to send, show typing briefly. A
+                            # completed reaction-only turn never enters this path.
+                            await self.signal("typing", {"to": chat, "on": True})
+                            await asyncio.sleep(min(1.5, 0.25 + len(payload["text"]) / 400))
                         response = await self.http.post(
-                            f"/send/{quote(self.line, safe='')}", json={"to": chat, "text": event["data"]["content"]}
+                            f"/{path}/{quote(self.line, safe='')}", json=payload
                         )
                         response.raise_for_status()
                         receipt = response.json()
@@ -204,6 +275,11 @@ class IraWhatsApp:
                             )
                     except Exception:
                         pass  # An uncertain WhatsApp send never retries a payment or its own message.
+                    finally:
+                        if written:
+                            # Sending a progress bubble clears sidecar presence.
+                            # Restore it if the main turn is still doing tool work.
+                            await self.signal("typing", {"to": chat, "on": chat in self.working_chats})
                 with self.db:
                     self.db.execute("UPDATE routes SET cursor=? WHERE user_id=?", (event["id"], user))
 
@@ -241,15 +317,27 @@ class IraWhatsApp:
                     )
                     if not any(entries for _stream, entries in batches):
                         pending = False
-                    for _stream, entries in batches:
-                        for entry_id, fields in entries:
-                            try:
-                                await self.receive(json.loads(fields.get("data", "{}")))
-                            except (sqlite3.Error, OSError):
-                                pending = True
-                                await asyncio.sleep(5)
-                                continue  # Intake was not durable; leave the Redis message unacknowledged.
-                            await self.redis.xack(self.stream, self.group, entry_id)
+                    decoded = [
+                        (entry_id, json.loads(fields.get("data", "{}")))
+                        for _stream, entries in batches for entry_id, fields in entries
+                    ]
+                    newest = {}
+                    for entry_id, event in decoded:
+                        if self.eligible(event) and not self.db.execute(
+                            "SELECT 1 FROM inbox WHERE key=?",
+                            (f"{self.line}:{event['chat']}:{event['id']}",),
+                        ).fetchone():
+                            newest[(event["chat"], event["sender_lid"])] = entry_id
+                    for entry_id, event in decoded:
+                        try:
+                            await self.receive(event, reactions=(
+                                newest.get((event.get("chat"), event.get("sender_lid"))) == entry_id
+                            ))
+                        except (sqlite3.Error, OSError):
+                            pending = True
+                            await asyncio.sleep(5)
+                            continue  # Intake was not durable; leave the Redis message unacknowledged.
+                        await self.redis.xack(self.stream, self.group, entry_id)
                 except (RedisConnectionError, RedisTimeoutError):
                     pending = True
                     await asyncio.sleep(5)

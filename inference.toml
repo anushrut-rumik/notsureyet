@@ -4,6 +4,7 @@ default = "general"
 chat = "general"
 planner = "planning"
 worker = "workers"
+reaction = "reactions"
 
 [endpoints.general]
 provider = "openai"
@@ -31,3 +32,14 @@ model = "gpt-6-luna"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 180
 options = {max_output_tokens = 8192}
+
+# A small, non-reasoning decision keeps reactions inside the three-second limit.
+# The normal reply and task models retain their existing settings.
+[endpoints.reactions]
+provider = "openai"
+protocol = "responses"
+base_url = "https://api.openai.com/v1"
+model = "gpt-6-luna"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 3
+options = {max_output_tokens = 128, reasoning = {effort = "none"}}

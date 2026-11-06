@@ -45,12 +45,12 @@ class Runtime:
         self.last_payment_poll = 0
         self.last_maintenance = 0
 
-    async def chat(self, user_id, text):
+    async def chat(self, user_id, text, *, interaction=None):
         try:
             self.recover(strict=False)
             # Commands and model turns share the same per-user lock and history.
             # Payment approval remains a raw incoming-message check before inference.
-            return await self.engine.chat(user_id, text, commands=self.commands)
+            return await self.engine.chat(user_id, text, commands=self.commands, interaction=interaction)
         except Exception as exc:
             record_chat_error(self.store, user_id, exc)
             raise
@@ -123,6 +123,7 @@ class Runtime:
             await asyncio.gather(*jobs, return_exceptions=True)
 
     async def close(self):
+        await self.engine.close()
         await self.models.close()
         await self.wallets.close()
         self.store.close()

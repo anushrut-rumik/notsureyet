@@ -30,8 +30,12 @@ def call(name, **arguments):
 class Script:
     def __init__(self, *steps):
         self.steps, self.calls = deque(steps), []
+        self.reaction_steps, self.reaction_calls = deque(), []
 
     async def complete(self, role, messages, tools):
+        if role == "reaction":
+            self.reaction_calls.append((role, messages, tools))
+            return self.reaction_steps.popleft() if self.reaction_steps else Answer('{"label":"none"}')
         self.calls.append((role, messages, tools))
         step = self.steps.popleft()
         return step(role, messages, tools) if callable(step) else step

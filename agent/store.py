@@ -87,6 +87,36 @@ class Store:
     def notice(self, user_id: str, text: str, task_id=None) -> int:
         return self.event(user_id, "chat_message", {"role": "assistant", "content": text}, task_id=task_id)
 
+    def react(self, user_id: str, message_event_id: int, emoji: str) -> bool:
+        """Attach once to the original user bubble and publish on the existing event feed."""
+        with self.db:
+            updated = self.db.execute(
+                "UPDATE events SET data=json_set(data,'$.emoji_reaction',?) "
+                "WHERE id=? AND user_id=? AND kind='chat_message' AND source='user' "
+                "AND json_extract(data,'$.role')='user' "
+                "AND length(trim(json_extract(data,'$.content')))>0 "
+                "AND json_extract(data,'$.emoji_reaction') IS NULL",
+                (emoji, message_event_id, user_id),
+            )
+            if not updated.rowcount:
+                return False
+            self.db.execute(
+                "INSERT INTO events(user_id,kind,source,data,at) VALUES(?,'chat_reaction','agent',?,?)",
+                (user_id, json.dumps({"message_event_id": message_event_id, "emoji_reaction": emoji}), time.time()),
+            )
+        return True
+
+    def answer_chat(self, user_id: str, message_event_id: int):
+        with self.db:
+            self.db.execute(
+                "UPDATE events SET data=json_set(data,'$.answered',json('true')) WHERE id=? AND user_id=?",
+                (message_event_id, user_id),
+            )
+            self.db.execute(
+                "INSERT INTO events(user_id,kind,source,data,at) VALUES(?,'chat_answered','agent',?,?)",
+                (user_id, json.dumps({"message_event_id": message_event_id}), time.time()),
+            )
+
     def create_task(self, user_id: str, title: str, instruction: str, done_when: str) -> dict:
         task_id, now = uuid4().hex, time.time()
         with self.db:

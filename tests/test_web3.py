@@ -382,8 +382,8 @@ async def test_ira_whatsapp_contract_identity_dedup_and_background_notices(confi
 
     def respond(request):
         assert request.headers["Authorization"] == "Bearer test-secret"
-        assert request.url.path == "/send/line-hackathon"
-        sent.append(json.loads(request.content))
+        if request.url.path == "/send/line-hackathon":
+            sent.append(json.loads(request.content))
         return httpx.Response(200, json={"id": "wa-reply-1", "chat": "123@s.whatsapp.net"})
 
     class Redis:
