@@ -80,6 +80,9 @@ the Continuity track requires the team's actual registration and disclosure.
 Repository: [anushrut-rumik/notsureyet](https://github.com/anushrut-rumik/notsureyet).
 Project code is under the [MIT License](LICENSE); dependencies retain their licenses.
 OpenAI Codex assisted with implementation, tests, debugging and documentation.
+The [product prompts and AI logs](docs/ai-logs/README.md) preserve the available
+development conversation history and tool activity, with content exclusions and
+credential redaction. The archive documents its coverage and refresh command.
 The Arkiv skill/plugin and official SDK/docs informed schema and write-safety work.
 The running agent also uses configured OpenAI models for inference. AI-generated
 claims were checked against source, regression tests and the explicitly identified

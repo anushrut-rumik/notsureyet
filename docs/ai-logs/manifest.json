@@ -1,0 +1,568 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-07T02:03:29.245284+00:00",
+  "timezone": "Asia/Kolkata",
+  "coverage": {
+    "from": "2026-11-06T06:16:34.567Z",
+    "through": "2026-11-07T02:00:07.004Z"
+  },
+  "counts": {
+    "source_sessions": 39,
+    "source_prompts": 217,
+    "matching_prompts_excluded": 11,
+    "excluded_turns": 9,
+    "sessions_without_eligible_messages": 2,
+    "additional_messages_excluded": 7,
+    "tool_records_excluded": 32,
+    "internal_agent_sessions_excluded": 3,
+    "request_sessions_excluded": 1,
+    "included_sessions": 37,
+    "included_prompts": 197,
+    "included_ai_messages": 589,
+    "included_tool_records": 2545
+  },
+  "redactions": {
+    "known_credential": 3,
+    "private_key": 0,
+    "credential_pattern": 2,
+    "url_credential": 0,
+    "authorization": 3,
+    "credential_assignment": 18,
+    "hex_value": 90,
+    "encoded_value": 0,
+    "long_value": 136,
+    "email": 11,
+    "phone": 10,
+    "phone_or_id": 22
+  },
+  "sessions": [
+    {
+      "id": "01a1af80-5c7c-7d13-bab2-479328a9f11b",
+      "title": "Integrate 0G Compute",
+      "started_at": "2026-11-06T06:16:27.635Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1af80-5c7c-7d13-bab2-479328a9f11b.md",
+      "prompts": 1,
+      "ai_messages": 10,
+      "tool_records": 72
+    },
+    {
+      "id": "01a1afbb-bf7e-7473-8a5b-0c6cb984282e",
+      "title": "Add Arkiv-backed Web3 agent features",
+      "started_at": "2026-11-06T07:21:19.646Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1afbb-bf7e-7473-8a5b-0c6cb984282e.md",
+      "prompts": 11,
+      "ai_messages": 35,
+      "tool_records": 102
+    },
+    {
+      "id": "01a1afd8-bc34-7b20-9115-fe2cde6bf6a9",
+      "title": "Add Arkiv-backed Web3 agent features",
+      "started_at": "2026-11-06T07:52:59.285Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1afd8-bc34-7b20-9115-fe2cde6bf6a9.md",
+      "prompts": 2,
+      "ai_messages": 1,
+      "tool_records": 0
+    },
+    {
+      "id": "01a1b001-aeb4-7470-b225-9b3df1c3f73d",
+      "title": "so currently the agnet is responding to / commands and what…",
+      "started_at": "2026-11-06T08:37:47.781Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b001-aeb4-7470-b225-9b3df1c3f73d.md",
+      "prompts": 2,
+      "ai_messages": 11,
+      "tool_records": 36
+    },
+    {
+      "id": "01a1b01d-36dc-7a91-a252-19117b202942",
+      "title": "Locate Arkiv usage and storage",
+      "started_at": "2026-11-06T09:07:47.100Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b01d-36dc-7a91-a252-19117b202942.md",
+      "prompts": 18,
+      "ai_messages": 46,
+      "tool_records": 179
+    },
+    {
+      "id": "01a1b045-dc1c-7862-bd65-08be11ab32b6",
+      "title": "Implement CCIP cross-chain transfers",
+      "started_at": "2026-11-06T09:52:10.891Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b045-dc1c-7862-bd65-08be11ab32b6.md",
+      "prompts": 16,
+      "ai_messages": 51,
+      "tool_records": 245
+    },
+    {
+      "id": "01a1b05d-17cc-7382-849c-3cf086daac4d",
+      "title": "Implement CCIP cross-chain transfers",
+      "started_at": "2026-11-06T10:17:33.534Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b05d-17cc-7382-849c-3cf086daac4d.md",
+      "prompts": 3,
+      "ai_messages": 4,
+      "tool_records": 6
+    },
+    {
+      "id": "01a1b06e-970a-7f61-996b-44e6e31b777e",
+      "title": "Switch inference to GPT-6 Sol",
+      "started_at": "2026-11-06T10:36:40.122Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b06e-970a-7f61-996b-44e6e31b777e.md",
+      "prompts": 3,
+      "ai_messages": 8,
+      "tool_records": 36
+    },
+    {
+      "id": "01a1b071-46d4-7660-9bf3-30faad8f1294",
+      "title": "Commit repository changes",
+      "started_at": "2026-11-06T10:39:36.262Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b071-46d4-7660-9bf3-30faad8f1294.md",
+      "prompts": 1,
+      "ai_messages": 4,
+      "tool_records": 12
+    },
+    {
+      "id": "01a1b07a-6249-75f2-8c16-867089e659e0",
+      "title": "Explain CCIP cross-chain flow",
+      "started_at": "2026-11-06T10:49:33.263Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b07a-6249-75f2-8c16-867089e659e0.md",
+      "prompts": 2,
+      "ai_messages": 4,
+      "tool_records": 10
+    },
+    {
+      "id": "01a1b0b7-865f-75b3-987c-e9d6d54a3b21",
+      "title": "Audit Arkiv transaction usage",
+      "started_at": "2026-11-06T11:56:20.056Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b0b7-865f-75b3-987c-e9d6d54a3b21.md",
+      "prompts": 1,
+      "ai_messages": 4,
+      "tool_records": 17
+    },
+    {
+      "id": "01a1b0c2-0ddb-7760-8253-8b0dc2233ddc",
+      "title": "Show Arkiv usage to sponsors",
+      "started_at": "2026-11-06T12:07:50.091Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b0c2-0ddb-7760-8253-8b0dc2233ddc.md",
+      "prompts": 3,
+      "ai_messages": 4,
+      "tool_records": 24
+    },
+    {
+      "id": "01a1b0c7-5859-7990-83d6-c838028e4975",
+      "title": "Commit and push changes",
+      "started_at": "2026-11-06T12:13:36.775Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b0c7-5859-7990-83d6-c838028e4975.md",
+      "prompts": 1,
+      "ai_messages": 5,
+      "tool_records": 19
+    },
+    {
+      "id": "01a1b0e7-6c21-7c50-ac0c-8de1dd437eb2",
+      "title": "Commit the changes",
+      "started_at": "2026-11-06T12:48:39.110Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b0e7-6c21-7c50-ac0c-8de1dd437eb2.md",
+      "prompts": 1,
+      "ai_messages": 3,
+      "tool_records": 9
+    },
+    {
+      "id": "01a1b106-47dc-77c3-874e-69865bdf33d8",
+      "title": "Remove .env.example",
+      "started_at": "2026-11-06T13:22:21.432Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b106-47dc-77c3-874e-69865bdf33d8.md",
+      "prompts": 2,
+      "ai_messages": 4,
+      "tool_records": 8
+    },
+    {
+      "id": "01a1b109-9dff-74b3-a45f-e5e4c93dd98c",
+      "title": "Add contextual emoji reactions",
+      "started_at": "2026-11-06T13:26:00.130Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b109-9dff-74b3-a45f-e5e4c93dd98c.md",
+      "prompts": 1,
+      "ai_messages": 2,
+      "tool_records": 9
+    },
+    {
+      "id": "01a1b130-eee7-7213-82ca-8c7c9b185be3",
+      "title": "Write warm WhatsApp messages",
+      "started_at": "2026-11-06T14:08:57.192Z",
+      "archived_source": true,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b130-eee7-7213-82ca-8c7c9b185be3.md",
+      "prompts": 2,
+      "ai_messages": 4,
+      "tool_records": 2
+    },
+    {
+      "id": "01a1b135-312f-78a1-9446-9831492e41d4",
+      "title": "Improve WhatsApp agent messages",
+      "started_at": "2026-11-06T14:13:35.737Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b135-312f-78a1-9446-9831492e41d4.md",
+      "prompts": 2,
+      "ai_messages": 7,
+      "tool_records": 31
+    },
+    {
+      "id": "01a1b177-be07-7c42-a99a-09226a995b5b",
+      "title": "Implement shared decision logic",
+      "started_at": "2026-11-06T15:26:17.131Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b177-be07-7c42-a99a-09226a995b5b.md",
+      "prompts": 2,
+      "ai_messages": 8,
+      "tool_records": 51
+    },
+    {
+      "id": "01a1b18b-2f57-7d31-9ad5-bdf8ff49ea62",
+      "title": "Implement Part 2",
+      "started_at": "2026-11-06T15:47:31.326Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b18b-2f57-7d31-9ad5-bdf8ff49ea62.md",
+      "prompts": 18,
+      "ai_messages": 46,
+      "tool_records": 155
+    },
+    {
+      "id": "01a1b1f0-ecce-75a3-8b94-7dae6399fc1a",
+      "title": "Fix issues in part 2",
+      "started_at": "2026-11-06T17:38:39.314Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b1f0-ecce-75a3-8b94-7dae6399fc1a.md",
+      "prompts": 7,
+      "ai_messages": 17,
+      "tool_records": 63
+    },
+    {
+      "id": "01a1b1fc-8bea-79a2-a43f-c7efa8007c27",
+      "title": "Implement CRE-CCIP rebalance",
+      "started_at": "2026-11-06T17:51:20.701Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b1fc-8bea-79a2-a43f-c7efa8007c27.md",
+      "prompts": 6,
+      "ai_messages": 16,
+      "tool_records": 131
+    },
+    {
+      "id": "01a1b214-a265-7a41-b311-64fe2f65e835",
+      "title": "Implement CRE-CCIP rebalance",
+      "started_at": "2026-11-06T18:17:39.256Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-06-01a1b214-a265-7a41-b311-64fe2f65e835.md",
+      "prompts": 4,
+      "ai_messages": 7,
+      "tool_records": 8
+    },
+    {
+      "id": "01a1b221-b042-75a3-9b36-30ad2308f5bf",
+      "title": "Implement Part 4",
+      "started_at": "2026-11-06T18:31:54.814Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra",
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-07-01a1b221-b042-75a3-9b36-30ad2308f5bf.md",
+      "prompts": 25,
+      "ai_messages": 89,
+      "tool_records": 424
+    },
+    {
+      "id": "01a1b231-a065-72c0-b4b4-e1b5787ff840",
+      "title": "Implement Part 4",
+      "started_at": "2026-11-06T18:49:19.289Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-07-01a1b231-a065-72c0-b4b4-e1b5787ff840.md",
+      "prompts": 1,
+      "ai_messages": 1,
+      "tool_records": 0
+    },
+    {
+      "id": "01a1b2cb-c2ac-7262-9d7b-a5ab4ccdf2bb",
+      "title": "Development session",
+      "started_at": "2026-11-06T21:37:40.634Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra",
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-07-01a1b2cb-c2ac-7262-9d7b-a5ab4ccdf2bb.md",
+      "prompts": 12,
+      "ai_messages": 38,
+      "tool_records": 114
+    },
+    {
+      "id": "01a1b2f3-39af-7d12-bea6-1fcbec7ae103",
+      "title": "Fix repeated strategy responses",
+      "started_at": "2026-11-06T22:20:47.015Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra",
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-07-01a1b2f3-39af-7d12-bea6-1fcbec7ae103.md",
+      "prompts": 8,
+      "ai_messages": 31,
+      "tool_records": 145
+    },
+    {
+      "id": "01a1b309-f209-7da2-bd7d-8192bacbfe44",
+      "title": "Locate Arkiv liquidity pool usage",
+      "started_at": "2026-11-06T22:45:36.015Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra",
+        "gpt-6.1-sol"
+      ],
+      "file": "sessions/2026-11-07-01a1b309-f209-7da2-bd7d-8192bacbfe44.md",
+      "prompts": 5,
+      "ai_messages": 11,
+      "tool_records": 25
+    },
+    {
+      "id": "01a1b32e-1370-7f32-acc1-51892aa837a1",
+      "title": "Development session",
+      "started_at": "2026-11-06T23:25:03.846Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b32e-1370-7f32-acc1-51892aa837a1.md",
+      "prompts": 7,
+      "ai_messages": 24,
+      "tool_records": 203
+    },
+    {
+      "id": "01a1b348-1208-7840-b119-9dc54a17d8d3",
+      "title": "Explain the deployment plan",
+      "started_at": "2026-11-06T23:53:27.617Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b348-1208-7840-b119-9dc54a17d8d3.md",
+      "prompts": 3,
+      "ai_messages": 5,
+      "tool_records": 4
+    },
+    {
+      "id": "01a1b34c-9a76-7fb0-b8aa-d1054c93b608",
+      "title": "Development session",
+      "started_at": "2026-11-06T23:58:24.578Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b34c-9a76-7fb0-b8aa-d1054c93b608.md",
+      "prompts": 4,
+      "ai_messages": 6,
+      "tool_records": 3
+    },
+    {
+      "id": "01a1b364-f5c5-7483-a93c-e49b1f7d1059",
+      "title": "Resume CRE pool fix",
+      "started_at": "2026-11-07T00:25:00.738Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b364-f5c5-7483-a93c-e49b1f7d1059.md",
+      "prompts": 8,
+      "ai_messages": 40,
+      "tool_records": 231
+    },
+    {
+      "id": "01a1b36a-8f10-7861-a84e-974314ce7aab",
+      "title": "Resume CRE pool fix",
+      "started_at": "2026-11-07T00:31:07.668Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b36a-8f10-7861-a84e-974314ce7aab.md",
+      "prompts": 6,
+      "ai_messages": 11,
+      "tool_records": 10
+    },
+    {
+      "id": "01a1b37b-b20b-7280-8140-75b14bc8c302",
+      "title": "Integrate Arkiv with the CRE pool",
+      "started_at": "2026-11-07T00:49:50.706Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b37b-b20b-7280-8140-75b14bc8c302.md",
+      "prompts": 5,
+      "ai_messages": 21,
+      "tool_records": 126
+    },
+    {
+      "id": "01a1b39c-b152-78e3-91e3-fe03450cf992",
+      "title": "Check CRE 24-hour cooldown",
+      "started_at": "2026-11-07T01:25:53.185Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b39c-b152-78e3-91e3-fe03450cf992.md",
+      "prompts": 1,
+      "ai_messages": 3,
+      "tool_records": 10
+    },
+    {
+      "id": "01a1b39e-078b-7131-8c98-3b7fe5cef996",
+      "title": "Assess CRE deployment impact",
+      "started_at": "2026-11-07T01:27:20.838Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b39e-078b-7131-8c98-3b7fe5cef996.md",
+      "prompts": 2,
+      "ai_messages": 5,
+      "tool_records": 17
+    },
+    {
+      "id": "01a1b3ba-f33e-7a50-bce1-bc33c13ca0ae",
+      "title": "Write clear project descriptions",
+      "started_at": "2026-11-07T01:58:56.243Z",
+      "archived_source": false,
+      "models": [
+        "gpt-6-astra"
+      ],
+      "file": "sessions/2026-11-07-01a1b3ba-f33e-7a50-bce1-bc33c13ca0ae.md",
+      "prompts": 1,
+      "ai_messages": 3,
+      "tool_records": 8
+    }
+  ],
+  "generated_files": [
+    "README.md",
+    "conversations.jsonl",
+    "manifest.json",
+    "sessions/2026-11-06-01a1af80-5c7c-7d13-bab2-479328a9f11b.md",
+    "sessions/2026-11-06-01a1afbb-bf7e-7473-8a5b-0c6cb984282e.md",
+    "sessions/2026-11-06-01a1afd8-bc34-7b20-9115-fe2cde6bf6a9.md",
+    "sessions/2026-11-06-01a1b001-aeb4-7470-b225-9b3df1c3f73d.md",
+    "sessions/2026-11-06-01a1b01d-36dc-7a91-a252-19117b202942.md",
+    "sessions/2026-11-06-01a1b045-dc1c-7862-bd65-08be11ab32b6.md",
+    "sessions/2026-11-06-01a1b05d-17cc-7382-849c-3cf086daac4d.md",
+    "sessions/2026-11-06-01a1b06e-970a-7f61-996b-44e6e31b777e.md",
+    "sessions/2026-11-06-01a1b071-46d4-7660-9bf3-30faad8f1294.md",
+    "sessions/2026-11-06-01a1b07a-6249-75f2-8c16-867089e659e0.md",
+    "sessions/2026-11-06-01a1b0b7-865f-75b3-987c-e9d6d54a3b21.md",
+    "sessions/2026-11-06-01a1b0c2-0ddb-7760-8253-8b0dc2233ddc.md",
+    "sessions/2026-11-06-01a1b0c7-5859-7990-83d6-c838028e4975.md",
+    "sessions/2026-11-06-01a1b0e7-6c21-7c50-ac0c-8de1dd437eb2.md",
+    "sessions/2026-11-06-01a1b106-47dc-77c3-874e-69865bdf33d8.md",
+    "sessions/2026-11-06-01a1b109-9dff-74b3-a45f-e5e4c93dd98c.md",
+    "sessions/2026-11-06-01a1b130-eee7-7213-82ca-8c7c9b185be3.md",
+    "sessions/2026-11-06-01a1b135-312f-78a1-9446-9831492e41d4.md",
+    "sessions/2026-11-06-01a1b177-be07-7c42-a99a-09226a995b5b.md",
+    "sessions/2026-11-06-01a1b18b-2f57-7d31-9ad5-bdf8ff49ea62.md",
+    "sessions/2026-11-06-01a1b1f0-ecce-75a3-8b94-7dae6399fc1a.md",
+    "sessions/2026-11-06-01a1b1fc-8bea-79a2-a43f-c7efa8007c27.md",
+    "sessions/2026-11-06-01a1b214-a265-7a41-b311-64fe2f65e835.md",
+    "sessions/2026-11-07-01a1b221-b042-75a3-9b36-30ad2308f5bf.md",
+    "sessions/2026-11-07-01a1b231-a065-72c0-b4b4-e1b5787ff840.md",
+    "sessions/2026-11-07-01a1b2cb-c2ac-7262-9d7b-a5ab4ccdf2bb.md",
+    "sessions/2026-11-07-01a1b2f3-39af-7d12-bea6-1fcbec7ae103.md",
+    "sessions/2026-11-07-01a1b309-f209-7da2-bd7d-8192bacbfe44.md",
+    "sessions/2026-11-07-01a1b32e-1370-7f32-acc1-51892aa837a1.md",
+    "sessions/2026-11-07-01a1b348-1208-7840-b119-9dc54a17d8d3.md",
+    "sessions/2026-11-07-01a1b34c-9a76-7fb0-b8aa-d1054c93b608.md",
+    "sessions/2026-11-07-01a1b364-f5c5-7483-a93c-e49b1f7d1059.md",
+    "sessions/2026-11-07-01a1b36a-8f10-7861-a84e-974314ce7aab.md",
+    "sessions/2026-11-07-01a1b37b-b20b-7280-8140-75b14bc8c302.md",
+    "sessions/2026-11-07-01a1b39c-b152-78e3-91e3-fe03450cf992.md",
+    "sessions/2026-11-07-01a1b39e-078b-7131-8c98-3b7fe5cef996.md",
+    "sessions/2026-11-07-01a1b3ba-f33e-7a50-bce1-bc33c13ca0ae.md",
+    "tool-activity.jsonl"
+  ]
+}
