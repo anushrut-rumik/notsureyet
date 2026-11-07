@@ -20,7 +20,7 @@ for(const deployment of review.deployments){
  if(!previous)throw Error('Missing confirmed owned test pool');
  const client=createPublicClient({transport:http(deployment.network.rpc,{timeout:15000,retryCount:1})});
  if(String(await client.getChainId())!==deployment.network.chainId)throw Error('Wrong RPC chain');
- const block=await client.getBlock({blockTag:'finalized'}),artifact=JSON.parse(await readFile('contracts/out/MockPool.sol/MockPool.json','utf8'));
+ const block=await client.getBlock({blockTag:'finalized'}),artifact=JSON.parse(await readFile('contracts/out-lending/MockPool.sol/MockPool.json','utf8'));
  verifyRuntimeCode(await client.getCode({address:previous.pool,blockNumber:block.number}),artifact);
  const abi=parseAbi(['function owner() view returns(address)','function asset() view returns(address)']);
  const [owner,token]=await Promise.all(['owner','asset'].map(functionName=>client.readContract({address:previous.pool,abi,functionName,blockNumber:block.number})));

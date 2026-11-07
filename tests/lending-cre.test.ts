@@ -1,7 +1,7 @@
 // SDK harness tests, explicitly NOT actual CRE simulator evidence.
 import {expect} from 'bun:test';
 import {test,newTestRuntime,EvmMock,addContractMock} from '@chainlink/cre-sdk/test';
-import {bigintToProtoBigInt,hexToBase64} from '@chainlink/cre-sdk';
+import {bigintToProtoBigInt,hexToBase64,protoBigIntToBigint} from '@chainlink/cre-sdk';
 import {testnets} from '../lending/testnets.js';
 import {readAbi} from '../lending/observation.js';
 import {onTrigger} from '../cre-lending/workflow/workflow.js';
@@ -9,13 +9,13 @@ import {evaluateRun} from '../lending/run.js';
 import {FIXTURE_NOW} from '../lending/fixtures.js';
 // @ts-ignore test fixture intentionally imports the built shared modules.
 import {payloadFixture} from './helpers/lending-payload.mjs';
-function setup(days:30|60=60,change?:'hash'|'rate'|'quote'|'finality') {
+function setup(days:30|60=60,change?:'hash'|'rate'|'quote'|'finality',mined=false) {
  const payload=payloadFixture(days);
- const runtime=newTestRuntime(null,{timeProvider:()=>Number(FIXTURE_NOW)*1000},{mode:'testnet-read-only' as const,configVersion:'part2-testnets-v1' as const});
+ const runtime=newTestRuntime(null,{timeProvider:()=>Number(FIXTURE_NOW)*1000},{mode:mined?'testnet-mined-read-only' as const:'testnet-read-only' as const,configVersion:'part2-testnets-v1' as const});
  testnets.forEach((n,i)=>{
   const c=payload.chains[i],mock=EvmMock.testInstance(BigInt(n.selector));
-  mock.headerByNumber=()=>({header:{timestamp:FIXTURE_NOW,blockNumber:bigintToProtoBigInt(change==='finality'?9:10),
-   hash:hexToBase64(change==='hash'?'0x'+'cd'.repeat(32):c.blockHash),parentHash:hexToBase64('0x'+'00'.repeat(32))}});
+  mock.headerByNumber=request=>{if(mined&&request.blockNumber&&protoBigIntToBigint(request.blockNumber)===-3n)throw Error('Finality unavailable');return {header:{timestamp:FIXTURE_NOW,blockNumber:bigintToProtoBigInt(change==='finality'?9:10),
+   hash:hexToBase64(change==='hash'?'0x'+'cd'.repeat(32):c.blockHash),parentHash:hexToBase64('0x'+'00'.repeat(32))}};};
   const wallet=addContractMock(mock,{address:c.wallet,abi:readAbi});
   wallet.observe=()=>c.values.map((v:string,j:number)=>BigInt(change==='rate'&&j===3?'0':v));
   wallet.binding=()=>c.binding;wallet.quoteLink=()=>BigInt(change==='quote'?'0':c.quoteLinkUnits);
@@ -55,4 +55,12 @@ test('arithmetic CRE entry rejects observations presented as testnet evidence',(
  const runtime=newTestRuntime(null,{timeProvider:()=>Number(FIXTURE_NOW)*1000},{mode:'local-simulation' as const,scope:'arithmetic-only' as const});
  const input=JSON.parse(JSON.stringify(exampleRun(60)));input.snapshot.position.evidence.source='testnet:11155111';
  expect(()=>onArithmeticTrigger(runtime,{input:new TextEncoder().encode(JSON.stringify(input))} as any)).toThrow('labelled arithmetic fixtures');
+});
+
+test('mined read-only evaluation verifies canonical state without requesting finality',()=>{
+ const s=setup(60,undefined,true);const result=JSON.parse(onTrigger(s.runtime,s.trigger));
+ expect(result.mode).toBe('testnet-mined-read-only');expect(result.result.decision.action).toBe('move');
+});
+for(const defect of ['hash','rate','quote'] as const)test(`mined evaluation rejects ${defect} mismatch`,()=>{
+ const s=setup(60,defect,true);expect(()=>onTrigger(s.runtime,s.trigger)).toThrow();
 });

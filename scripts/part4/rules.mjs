@@ -11,13 +11,15 @@ import {tmpdir,homedir} from 'node:os';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {existsSync} from 'node:fs';
+import {executionFailure} from './cre-execution.mjs';
 
-export async function native(input) {
+export async function native(input,observation=null) {
+ if(observation&&!isDeepStrictEqual(input,observation.run))throw Error('Observation and evaluation input differ');
  const dir=await mkdtemp(resolve(tmpdir(),'lending-evaluation-'));
  try {
-  const path=resolve(dir,'input.json');await writeFile(path,JSON.stringify(input),{mode:0o600});
+  const path=resolve(dir,'input.json');await writeFile(path,JSON.stringify(observation??input),{mode:0o600});
   const cli=existsSync(resolve(homedir(),'.cre/bin/cre'))?resolve(homedir(),'.cre/bin/cre'):'cre';
-  const args=['workflow','simulate','arithmetic-check','--target','local-simulation','--non-interactive','--trigger-index','0','--http-payload',path];
+  const args=['workflow','simulate',observation?'workflow':'arithmetic-check','--target',observation?'testnet-fast-read-only':'local-simulation','--non-interactive','--trigger-index','0','--http-payload',path];
   const output=await new Promise((ok,fail)=>{
    const child=spawn(cli,args,{cwd:resolve('cre-lending'),stdio:['ignore','pipe','pipe'],
     env:{...process.env,PATH:resolve('node_modules/.bin')+':'+process.env.PATH}});
@@ -27,10 +29,15 @@ export async function native(input) {
    const append=b=>{data+=b;if(data.length>2000000){child.kill('SIGKILL');finish(Error('CRE output too large'));}};
    child.stdout.on('data',append);child.stderr.on('data',append);
    child.on('error',()=>finish(Error('CRE CLI unavailable; no transfer admitted')));
-   child.on('close',code=>finish(code===0?null:Error('CRE evaluation failed; check CLI authentication/setup'),data));
+   child.on('close',code=>{
+    const failure=code===0?null:executionFailure(data);
+    finish(failure?Object.assign(Error(failure.message),{failureCode:failure.code}):null,data);
+   });
   });
   const result=readLoggedResult(output);
-  if(result.scope!=='arithmetic-only'||result.broadcast!==false||result.deployedContractsRead!==false)
+  if(observation){
+   if(result.mode!=='testnet-mined-read-only'||!isDeepStrictEqual(result.chains,observation.chains))throw Error('Unexpected CRE observation evidence');
+  }else if(result.scope!=='arithmetic-only'||result.broadcast!==false||result.deployedContractsRead!==false)
    throw Error('Unexpected CRE evidence scope');
   // A binding-level rejection has no evaluator clock and cannot authorize a move.
   if(result.result.decision.evaluatedAt===null) {
@@ -42,6 +49,14 @@ export async function native(input) {
   return {input,result:result.result,engine:'native-local-CRE',broadcast:false};
  } finally {await rm(dir,{recursive:true,force:true});}
 }
+export function planDurationSeconds(settings) {
+ const {days,durationSeconds}=settings;
+ const hasDays=days!=null,hasSeconds=durationSeconds!=null;
+ if(hasDays&&(!Number.isSafeInteger(days)||days<1||days>365))throw Error('Invalid plan days');
+ if(hasSeconds&&(!Number.isSafeInteger(durationSeconds)||durationSeconds<60||durationSeconds>365*86400))throw Error('Invalid plan duration');
+ if(hasDays&&hasSeconds&&days*86400!==durationSeconds)throw Error('Conflicting plan durations');
+ return BigInt(hasSeconds?durationSeconds:(hasDays?days:30)*86400);
+}
 async function main(){
 let raw='';for await(const chunk of process.stdin){raw+=chunk;if(raw.length>131072)throw Error('Oversized request');}
 try {
@@ -49,7 +64,7 @@ try {
  if(p.action==='plan') {
   const run=structuredClone(exampleRun(30)),s=p.settings,now=p.now;
   run.policy={...run.policy,version:p.version,approvalId:'pending:'+p.planId,userId:p.user,
-   walletAddress:p.wallet,approvedAt:now,deadline:String(BigInt(now)+BigInt(s.days)*86400n),
+   walletAddress:p.wallet,approvedAt:now,deadline:String(BigInt(now)+planDurationSeconds(s)),
    protectedIdleReserveUnits:s.reserveUnits,maxMovableUnits:s.amountUnits,
    minNetBenefitMicrounits:s.minNetBenefitMicrounits,maxFeeMicrounits:s.maxFeeMicrounits,
    maxObservationAgeSeconds:s.maxObservationAgeSeconds,maxObservationSkewSeconds:s.maxObservationSkewSeconds,

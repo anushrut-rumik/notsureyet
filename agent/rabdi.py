@@ -176,6 +176,14 @@ class RabdiTransfers:
         Bridge.save_json(path, value)
 
     def reserve(self, payment):
+        from agent.arkiv_custody import activity_reserved, signer_lock
+
+        with signer_lock(self.config, payment["sender"]):
+            if activity_reserved(self.config, payment["sender"]):
+                raise ValueError("Finish the pending activity-storage transaction before another Rabdi payment.")
+            self._reserve_unlocked(payment)
+
+    def _reserve_unlocked(self, payment):
         if payment_reserved(self.config, payment["sender"]):
             raise ValueError("This Rabdi wallet already has an admitted payment. Reconcile its existing hash first.")
         bridge = getattr(self.wallets.store, "bridge", None)

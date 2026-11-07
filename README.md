@@ -316,8 +316,24 @@ In the configured WhatsApp chat, say "Set up my agent to manage my test tokens
 with CRE." Review the owner, contracts and gas limits, then reply "go ahead".
 The agent tracks setup and tells you when the strategy is ready. Then ask
 "Manage my test tokens for 30 days and check every minute", approve the shown
-plan, and say "start managing my tokens". Status, pool comparisons, pause and
+plan. Approval automatically queues funding and deposit. Status, pool comparisons, pause and
 withdrawal also accept ordinary language. No slash commands are required.
+
+Short plans are supported too: "Manage them for 2 hours and check every 10
+minutes" creates a 7,200-second plan with 600-second checks. Its deadline is
+fixed in the approval review. Expiry stops new investments and keeps tracking
+submitted transfers; it does not automatically withdraw an existing position.
+
+Approval responses and management updates are written by the agent from
+recorded application results. Exact approval reviews still come from the
+application. Approval and its start request are saved together. The worker
+resumes startup after interruptions and marks management active only after
+the deposit is verified. No second start instruction is required.
+
+Run `npm run lending:setup:build` before using the lending setup or live broker.
+Its Cancun artifacts use `contracts/out-lending` and a separate compiler cache.
+Ordinary contract builds use `contracts/out`, so they cannot overwrite the
+lending artifacts with a different EVM target.
 
 This uses testnet mock pools and local CRE execution, not earned yield or a
 deployed decentralized workflow. See [the Part 4 runbook](docs/lending-part4.md).

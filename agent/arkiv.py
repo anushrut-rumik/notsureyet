@@ -201,6 +201,19 @@ class Bridge:
         )
 
     def _invoke(self, scope, command, **args):
+        from agent.arkiv_custody import activity_reserved, signer_lock
+
+        if command in {"read", "funding"}:
+            return self._invoke_unlocked(scope, command, **args)
+        try:
+            with signer_lock(self.config, scope["writer"]):
+                if activity_reserved(self.config, scope["writer"]):
+                    raise ArkivError("An activity-storage transaction needs reconciliation before another Rabdi write.")
+                return self._invoke_unlocked(scope, command, **args)
+        except ValueError as exc:
+            raise ArkivError(str(exc)) from None
+
+    def _invoke_unlocked(self, scope, command, **args):
         if command in {"write", "prepare_external", "claim_external"}:
             from agent.rabdi import payment_reserved
 

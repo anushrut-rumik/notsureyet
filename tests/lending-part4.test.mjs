@@ -23,19 +23,22 @@ function rpc(manifest,receipt={status:'success',blockNumber:20n,blockHash:H}){
   getTransactionReceipt:async()=>receipt,getTransaction:async()=>({from:manifest.owner,to:manifest.chains[0].wallet,
    input:data,value:0n,chainId:11155111}),getLogs:async()=>[]});
 }
-test('initial deposit confirmation reuses exact Part 2 call and finalized receipt checks',async t=>{
+test('initial deposit confirmation reuses exact Part 2 call and canonical receipt checks',async t=>{
  const {manifest}=setup(t),chain=manifest.chains[0];
  chain.fundingCalls=[{to:chain.wallet,hash:H,data:encodeFunctionData({abi:depositAbi,functionName:'depositToPool',args:[800n]})}];
  const result=await tracking(manifest,rpc(manifest));
  assert.equal(result.initialDeposits[0].state,'confirmed');assert.equal(result.initialDeposits[0].amountUnits,'800');
  const get=rpc(manifest);await assert.rejects(()=>tracking(manifest,c=>({...get(c),getTransaction:async()=>({...await get(c).getTransaction(),to:'0x'+'99'.repeat(20)})})),/target/);
 });
-test('unfinalized deposit stays pending; reverted receipt is never confirmation',async t=>{
+test('dedicated testnet deposit does not wait for finality; reverted receipt is never confirmation',async t=>{
  const {manifest}=setup(t),chain=manifest.chains[0];
  chain.fundingCalls=[{to:chain.wallet,hash:H,data:encodeFunctionData({abi:depositAbi,functionName:'depositToPool',args:[800n]})}];
  const get=rpc(manifest);
  const result=await tracking(manifest,c=>({...get(c),getBlock:async ({blockTag})=>({number:blockTag?1n:20n,hash:H})}));
- assert.equal(result.initialDeposits[0].state,'pending');
+ assert.equal(result.initialDeposits[0].state,'confirmed');
+ const strict={...manifest,scope:'standalone'};
+ const waiting=await tracking(strict,c=>({...get(c),getBlock:async ({blockTag})=>({number:blockTag?1n:20n,hash:H})}));
+ assert.equal(waiting.initialDeposits[0].state,'pending');
  await assert.rejects(()=>tracking(manifest,rpc(manifest,{status:'reverted',blockNumber:20n,blockHash:H})),/reverted/);
 });
 test('Part 3 journal monitoring binds exact user, owner and both strategy deployments',async t=>{

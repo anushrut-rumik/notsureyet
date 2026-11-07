@@ -15,6 +15,7 @@ async def binding(app, tmp_path):
     await approved(app)
     service = runtime.lending
     state = service.read(USER)
+    state["plan"]["status"] = "approved"  # Legacy approval-only fixture for explicit-start authorization tests.
     state["mode"] = service.mode = "testnet"
     wallet = runtime.wallets.agent_wallet(USER)
     manifest = {
@@ -128,3 +129,93 @@ async def test_live_start_intent_survives_a_crash_before_the_broker_returns(app,
     with pytest.raises(RuntimeError, match="interrupted"):
         await service.start(USER)
     assert service.read(USER)["plan"]["status"] == "awaiting_deposit"
+
+
+@pytest.mark.parametrize("status", ["submission_unknown", "submitted", "preflight_failed"])
+async def test_rebalance_progress_keeps_verified_management_active(app, tmp_path, monkeypatch, status):
+    service, state, _, _ = await binding(app, tmp_path)
+    state["plan"]["status"] = "active"
+    error = {"code": "CRE_READ_LIMIT", "message": "CRE exceeded its contract-read limit."}
+
+    class Child:
+        returncode = 0
+
+        async def communicate(self, payload):
+            return json.dumps({"status": status, "operations": [], "execution": {"error": error}}).encode(), b""
+
+    async def spawn(*_args, **_kwargs):
+        return Child()
+
+    monkeypatch.setattr("agent.lending_live.asyncio.create_subprocess_exec", spawn)
+    await execute(service, USER, state, "evaluate")
+    row = service.store.db.execute(
+        "SELECT data FROM events WHERE user_id=? AND kind='lending_update' ORDER BY id DESC LIMIT 1", (USER,)
+    ).fetchone()
+    facts = json.loads(row[0])["facts"]
+    assert facts["management_active"] is True
+    assert facts["execution_error"] == error
+    assert facts["broadcast_attempted"] is (status != "preflight_failed")
+    assert state["error"] == "CRE_READ_LIMIT"
+
+
+async def test_status_read_failure_preserves_approval_and_saved_receipts(app, tmp_path, monkeypatch):
+    service, state, _, _ = await binding(app, tmp_path)
+    state["plan"]["status"] = "active"
+    state["liveProgress"] = {"status": "submitted", "transactions": [{"hash": "saved-receipt"}]}
+    state["testnetProgress"] = {"chains": {}, "operations": []}
+    service.save(USER, state)
+
+    async def unavailable(*_args):
+        raise ValueError("private provider payload must not reach chat")
+
+    monkeypatch.setattr(service, "testnet_portfolio", unavailable)
+    result = await service.status(USER)
+    assert result["status"] == "active"
+    assert result["plan"]["approvalEvent"] == state["plan"]["approvalEvent"]
+    assert result["liveProgress"]["transactions"][0]["hash"] == "saved-receipt"
+    assert result["observationFresh"] is False
+    assert "saved observations" in result["refreshError"]
+    assert "private provider" not in json.dumps(result)
+
+
+async def test_successful_monitor_clears_a_recovered_check_error(app, tmp_path, monkeypatch):
+    service, state, _, _ = await binding(app, tmp_path)
+    state["plan"]["status"] = "active"
+    state["error"] = "ValueError"
+
+    class Child:
+        returncode = 0
+
+        async def communicate(self, payload):
+            return b'{"status":"idle","operations":[]}', b""
+
+    async def spawn(*_args, **_kwargs):
+        return Child()
+
+    monkeypatch.setattr("agent.lending_live.asyncio.create_subprocess_exec", spawn)
+    await execute(service, USER, state, "monitor")
+    assert state["error"] is None
+
+
+async def test_cancelled_operation_notice_includes_verified_no_send(app, tmp_path, monkeypatch):
+    service, state, _, _ = await binding(app, tmp_path)
+    state["plan"]["status"] = "active"
+
+    class Child:
+        returncode = 0
+
+        async def communicate(self, payload):
+            return json.dumps({"status": "cancelled", "operations": [{
+                "id": "cancelled-operation", "state": "cancelled",
+                "details": {"recoveryStatus": "verified-no-send", "sourceHash": "failed-outer-receipt"},
+            }]}).encode(), b""
+
+    async def spawn(*_args, **_kwargs):
+        return Child()
+
+    monkeypatch.setattr("agent.lending_live.asyncio.create_subprocess_exec", spawn)
+    await execute(service, USER, state, "monitor")
+    facts = service.store.events(USER, kind="lending_update")[-1]["data"]["facts"]
+    assert facts["no_token_transfer_verified"] is True
+    assert facts["source_transaction_hash"] == "failed-outer-receipt"
+    assert facts["destination_deposit_verified"] is False

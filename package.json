@@ -24,13 +24,13 @@
     "lending:plan": "npm run lending:build --silent && node scripts/lending-plan.mjs",
     "lending:funding:artifacts": "npm run lending:build --silent && node scripts/lending-funding-artifacts.mjs",
     "lending:cre:arithmetic": "npm run lending:build --silent && node scripts/lending-cre-arithmetic.mjs",
-    "lending:setup:build": "node scripts/foundry.mjs forge build --evm-version cancun",
+    "lending:setup:build": "node scripts/foundry.mjs forge build --evm-version cancun --out contracts/out-lending --cache-path contracts/cache-lending",
     "lending:setup": "npm run lending:build --silent && node scripts/lending-metamask-setup.mjs",
     "lending:finish": "npm run lending:build --silent && node scripts/lending-finish-part2.mjs",
     "lending:part3:test": "node scripts/part3/check.mjs",
     "lending:part3": "npm run lending:build --silent && node scripts/part3/cli.mjs",
     "lending:part3:sign": "npm run lending:build --silent && node scripts/part3/sign-server.mjs",
-    "lending:part4:test": "npm run lending:build && npm run lending:setup:build && uv run pytest tests/test_lending.py tests/test_lending_live.py -q && node --test tests/lending-part4.test.mjs tests/lending-live.test.mjs && node scripts/foundry.mjs forge test --evm-version cancun --match-path \"contracts/test/lending/part3/*.sol\"",
+    "lending:part4:test": "npm run lending:build && npm run lending:setup:build && uv run pytest tests/test_lending.py tests/test_lending_live.py tests/test_lending_messages.py tests/test_lending_duration.py tests/test_lending_conversation.py -q && node --test tests/lending-part4.test.mjs tests/lending-live.test.mjs tests/lending-cre-execution.test.mjs tests/lending-setup-runner.test.mjs tests/lending-duration.test.mjs && bun test tests/lending-part3-cre.test.ts && node scripts/foundry.mjs forge test --evm-version cancun --match-path \"contracts/test/lending/part3/*.sol\"",
     "lending:part4:demo": "npm run lending:build --silent && uv run python -m agent.lending_demo"
   },
   "dependencies": {

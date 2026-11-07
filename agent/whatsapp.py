@@ -239,6 +239,13 @@ class IraWhatsApp:
             for event in self.runtime.store.events(user, after=cursor):
                 reaction = event["kind"] == "chat_reaction"
                 written = event["kind"] == "chat_message" and event["data"].get("role") == "assistant"
+                if (
+                    event["data"].get("setupStage") not in {None, "ready"}
+                    and self.runtime.lending.read(user).get("setup", {}).get("notifyMode") == "ready_only"
+                ):
+                    with self.db:
+                        self.db.execute("UPDATE routes SET cursor=? WHERE user_id=?", (event["id"], user))
+                    continue
                 if not reaction and not written:
                     with self.db:
                         self.db.execute("UPDATE routes SET cursor=? WHERE user_id=?", (event["id"], user))

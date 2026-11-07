@@ -6,6 +6,14 @@ staging-settings:
     workflow-path: ./main.ts
     config-path: ./config.json
     secrets-path: ""
+execution-preflight:
+  user-workflow:
+    workflow-name: lending-p3
+    deployment-registry: private
+  workflow-artifacts:
+    workflow-path: ./main.ts
+    config-path: ./config.preflight.json
+    secrets-path: ""
 local-simulation:
   user-workflow:
     workflow-name: lending-p3-local

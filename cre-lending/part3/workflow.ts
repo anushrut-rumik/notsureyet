@@ -1,6 +1,6 @@
-import {cre,decodeJson,bytesToHex,encodeCallMsg,LAST_FINALIZED_BLOCK_NUMBER,TxStatus,prepareReportRequest,
+import {cre,decodeJson,bytesToHex,encodeCallMsg,LATEST_BLOCK_NUMBER,TxStatus,prepareReportRequest,
   type Runtime,type HTTPPayload} from '@chainlink/cre-sdk';
-import {decodeFunctionResult,encodeFunctionData,parseAbi,zeroAddress,type Address,type Hex} from 'viem';
+import {decodeFunctionResult,encodeFunctionData,multicall3Abi,parseAbi,zeroAddress,type Address,type Hex} from 'viem';
 import {z} from 'zod';
 import {onTrigger as checkAnchoredObservation} from '../workflow/workflow.js';
 import {validateExecutionPayload,encodeExecutionReport,instructionSchema} from '../../lending/part3/report.js';
@@ -9,13 +9,16 @@ import {readAbi} from '../../lending/observation.js';
 import {evaluateRun} from '../../lending/run.js';
 
 export const configSchema=z.discriminatedUnion('mode',[
-  z.object({mode:z.literal('testnet-execution'),configVersion:z.literal('part3-testnets-v1')}).strict(),
+  z.object({mode:z.enum(['testnet-execution','testnet-preflight']),configVersion:z.literal('part3-testnets-v1')}).strict(),
   z.object({mode:z.literal('local-simulation'),scope:z.literal('receiver-free-no-execution')}).strict(),
   z.object({mode:z.literal('testnet-report-preview'),scope:z.literal('metadata-only-no-write')}).strict(),
 ]);
 type Config=z.infer<typeof configSchema>;
 export const executionAbi=parseAbi(['function quoteOperation(bytes32,uint256) view returns(uint256)',
   'function activeOperation() view returns(bytes32)','function consumed(bytes32) view returns(bool)']);
+// Canonical Multicall3 deployment on both supported testnets (also in viem's chain definitions).
+// Only view methods are batched. A failed subcall rejects the entire observation.
+export const multicall3Address='0xca11bde05977b3631167028862be2a173976ca11' as const;
 export function onTrigger(runtime:Runtime<Config>,trigger:HTTPPayload):string {
   // No EVM clients, reports or writes in this branch, even if --broadcast is appended.
   if(runtime.config.mode==='local-simulation')return JSON.stringify({mode:runtime.config.mode,broadcast:false,
@@ -38,29 +41,37 @@ export function onTrigger(runtime:Runtime<Config>,trigger:HTTPPayload):string {
   }
   if(trigger.input.length>65536)throw Error('Oversized execution payload');
   const p=validateExecutionPayload(decodeJson(trigger.input));
-  checkAnchoredObservation(runtime as never,{...trigger,input:new TextEncoder().encode(JSON.stringify(p.observation))});
+  // This execution target is restricted to Sepolia and Base Sepolia. Verify the
+  // exact canonical snapshot without waiting for a finalized checkpoint.
+  checkAnchoredObservation(runtime as never,{...trigger,input:new TextEncoder().encode(JSON.stringify(p.observation))},false);
   const i=p.instruction;
   const requests=p.observation.chains.map(c=>{
     const n=testnets.find(n=>n.chainId===c.chainId)!;
     const client=new cre.capabilities.EVMClient(BigInt(n.selector));
-    const call=(abi:typeof readAbi|typeof executionAbi,name:string,args?:readonly unknown[])=>client.callContract(runtime,{
-      call:encodeCallMsg({from:zeroAddress,to:c.wallet as Address,data:encodeFunctionData({abi,functionName:name,args} as never)}),
-      blockNumber:LAST_FINALIZED_BLOCK_NUMBER});
-    // Initiate all independent calls before resolving any result.
-    return {c,client,state:call(readAbi,'observe'),binding:call(readAbi,'binding'),active:call(executionAbi,'activeOperation'),
-      consumed:call(executionAbi,'consumed',[i.operationId as Hex]),
-      quote:c.chainId===i.sourceChainId?call(executionAbi,'quoteOperation',[i.operationId as Hex,BigInt(i.amount)]):null};
+    const call=(abi:typeof readAbi|typeof executionAbi,name:string,args?:readonly unknown[])=>({
+      target:c.wallet as Address,allowFailure:false,callData:encodeFunctionData({abi,functionName:name,args} as never)});
+    const calls=[call(readAbi,'observe'),call(readAbi,'binding'),call(executionAbi,'activeOperation'),
+      call(executionAbi,'consumed',[i.operationId as Hex])];
+    if(c.chainId===i.sourceChainId)calls.push(call(executionAbi,'quoteOperation',[i.operationId as Hex,BigInt(i.amount)]));
+    // The anchored checks use 12 reads including headers. Two batches keep the
+    // complete execution at 14, within CRE's default 15-read limit, with no checks removed.
+    return {c,client,count:calls.length,state:client.callContract(runtime,{
+      call:encodeCallMsg({from:zeroAddress,to:multicall3Address,
+        data:encodeFunctionData({abi:multicall3Abi,functionName:'aggregate3',args:[calls]})}),
+      blockNumber:LATEST_BLOCK_NUMBER})};
   });
   let source:typeof requests[number]|undefined;
   for(const r of requests){
-    const decode=(abi:typeof readAbi|typeof executionAbi,name:string,data:Uint8Array)=>decodeFunctionResult({abi,functionName:name,data:bytesToHex(data)} as never);
-    const values=decode(readAbi,'observe',r.state.result().data) as readonly bigint[];
+    const batch=decodeFunctionResult({abi:multicall3Abi,functionName:'aggregate3',data:bytesToHex(r.state.result().data)});
+    if(batch.length!==r.count||batch.some(item=>!item.success))throw Error('Incomplete current-state contract reads');
+    const decode=(abi:typeof readAbi|typeof executionAbi,name:string,index:number)=>decodeFunctionResult({abi,functionName:name,data:batch[index]!.returnData} as never);
+    const values=decode(readAbi,'observe',0) as readonly bigint[];
     // Blocks can advance; economically relevant state must still match the signed observation.
     for(const index of [0,3,4,5,6,7,8,9,10,11])if(String(values[index])!==r.c.values[index])throw Error('Current balance/rate/capacity changed; cancel and prepare fresh input');
-    if(decode(readAbi,'binding',r.binding.result().data)!==r.c.binding)throw Error('Policy or wallet binding changed');
-    if(BigInt(String(decode(executionAbi,'activeOperation',r.active.result().data)))!==0n ||
-      decode(executionAbi,'consumed',r.consumed.result().data)!==false)throw Error('An operation is already pending or consumed');
-    if(r.quote){source=r;if(String(decode(executionAbi,'quoteOperation',r.quote.result().data))!==i.maxLinkFee)throw Error('Actual router fee changed');}
+    if(decode(readAbi,'binding',1)!==r.c.binding)throw Error('Policy or wallet binding changed');
+    if(BigInt(String(decode(executionAbi,'activeOperation',2)))!==0n ||
+      decode(executionAbi,'consumed',3)!==false)throw Error('An operation is already pending or consumed');
+    if(r.c.chainId===i.sourceChainId){source=r;if(String(decode(executionAbi,'quoteOperation',4))!==i.maxLinkFee)throw Error('Actual router fee changed');}
   }
   const now=Math.floor(runtime.now().getTime()/1000).toString();
   const result=evaluateRun(p.observation.run,()=>now);
@@ -70,7 +81,18 @@ export function onTrigger(runtime:Runtime<Config>,trigger:HTTPPayload):string {
   // This target uses verified testnet MockKeystoneForwarders. Their metadata is NOT
   // authenticated workflow identity; the consumer requires the bound owner EIP-712 signature.
   if(report.workflowName().replace(/\0+$/,'')!=='eb6597b43f')throw Error('Unexpected encoded CRE workflow name');
+  if(runtime.config.mode==='testnet-preflight'){
+    const checked={preflight:true,validated:true,operationId:i.operationId};
+    runtime.log('PART3_EXECUTION_RESULT='+JSON.stringify(checked));
+    return JSON.stringify(checked); // No chain-write capability in the preflight target.
+  }
   const written=source!.client.writeReport(runtime,{receiver:i.consumer,report,gasConfig:{gasLimit:'1500000'}}).result();
+  // Preserve even a reverted transaction's hash before raising. It still needs
+  // receipt reconciliation and must not turn into a hashless unknown attempt.
+  if(written.txHash?.length===32&&written.txHash.some(b=>b!==0)){
+    runtime.log('PART3_EXECUTION_RESULT='+JSON.stringify({submitted:true,
+      sourceTransactionHash:bytesToHex(written.txHash),operationId:i.operationId,transactionStatus:written.txStatus}));
+  }
   if(written.txStatus!==TxStatus.SUCCESS)throw Error('Submission outcome requires reconciliation: '+(written.errorMessage??written.txStatus));
   if(!written.txHash||written.txHash.length!==32||written.txHash.every(b=>b===0))throw Error('Unknown submission outcome: missing source hash');
   return JSON.stringify({submitted:true,state:'submitted',sourceTransactionHash:bytesToHex(written.txHash),

@@ -6,3 +6,11 @@ staging-settings:
     workflow-path: ./main.ts
     config-path: ./config.json
     secrets-path: ""
+testnet-fast-read-only:
+  user-workflow:
+    workflow-name: lending-p2
+    deployment-registry: private
+  workflow-artifacts:
+    workflow-path: ./main.ts
+    config-path: ./config.mined.json
+    secrets-path: ""

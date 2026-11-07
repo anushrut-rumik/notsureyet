@@ -4,6 +4,16 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {OperationJournal} from '../scripts/part3/journal.mjs';
+test('a proven CLI initialization rejection can close the claim; unknown outcomes cannot',t=>{
+ const {j}=store(t),p=executionFixture(),id=claimed(j,p);
+ for(const execution of [{}, {notSubmitted:true,exitCode:1,error:{code:'CRE_TIMEOUT'}},
+  {notSubmitted:false,exitCode:1,error:{code:'CRE_SIGNER_UNAVAILABLE'}}])
+  assert.throws(()=>j.cancelBeforeBroadcast(id,execution),/Missing proof/);
+ assert.equal(j.get(id).state,'submission_unknown');
+ assert.equal(j.cancelBeforeBroadcast(id,{notSubmitted:true,exitCode:1,
+  error:{code:'CRE_SIGNER_UNAVAILABLE',message:'CLI stopped before execution'}}).state,'cancelled');
+ assert.equal(j.get(id).details.broadcastAttempted,false);
+});
 import {reconcile,verifySourceReceipt,verifyDestination,recoveryArtifact,verifyMessage,getMessage,resolveNoSend,settleArtifact} from '../scripts/part3/monitor.mjs';
 import {executionFixture,sourceReceipt,destinationReceipt,messageFixture,H,M,D} from './helpers/lending-part3.mjs';
 import {validateExecutionPayload} from '../.local/lending-build/part3/report.js';
@@ -68,6 +78,13 @@ test('CCIP failure only offers recovery after current eligibility; never prepare
  assert.equal(r.state,'destination_failed');await assert.rejects(()=>recoveryArtifact(r,clients(p),async()=>failed),/not currently eligible/);
  const artifact=await recoveryArtifact(r,clients(p),async()=>({...failed,readyForManualExecution:true}));assert.equal(artifact.messageId,M);assert.equal(artifact.kind,'existing-message-recovery');
 });
+test('network verification wait is distinct from an application execution failure',async t=>{
+ const {j}=store(t),p=executionFixture(),id=claimed(j,p);j.update(id,'submitted',{sourceHash:H});
+ const message={...messageFixture(p,'SENT'),finalityType:'FINALIZED',executor:{status:'AWAITING_VERIFICATION'}};
+ const r=await reconcile(j,id,clients(p),async()=>message,{confirmation:'mined'});
+ assert.equal(r.state,'in_transit');assert.equal(r.details.failureReason,null);
+ assert.equal(r.details.ccipFinalityType,'FINALIZED');assert.equal(r.details.ccipExecutorStatus,'AWAITING_VERIFICATION');
+});
 test('wrong destination principal/token/receipt cannot count as verified',async()=>{
  const p=executionFixture(),r={immutable:p,details:{messageId:M,sourceHash:H}};
  await assert.rejects(()=>verifyDestination(r,destinationReceipt(p),{readContract:async()=>0n}),/position increase/);
@@ -79,6 +96,22 @@ test('unfinalized and reorged receipts cannot complete',async t=>{
  const {j}=store(t),p=executionFixture(),id=claimed(j,p);j.update(id,'submitted',{sourceHash:H});
  const c=clients(p);const result=await reconcile(j,id,chain=>({...c(chain),getBlock:async()=>({number:1n,hash:H})}));assert.equal(result.state,'submitted');
  await assert.rejects(()=>reconcile(j,id,chain=>({...c(chain),getBlock:async()=>({number:100n,hash:M})})),/Noncanonical/);
+});
+test('testnet mined confirmation completes from matching receipts without requesting finality',async t=>{
+ const {j}=store(t),p=executionFixture(),id=claimed(j,p);j.update(id,'submitted',{sourceHash:H});
+ const c=clients(p),mined=id=>({...c(id),getBlock:async args=>{
+  assert.notEqual(args.blockTag,'finalized');assert.notEqual(args.blockTag,'safe');return c(id).getBlock(args);
+ }});
+ const result=await reconcile(j,id,mined,async()=>messageFixture(p),{confirmation:'mined'});
+ assert.equal(result.state,'verified_deposit');assert.equal(result.details.confirmation,'mined');
+});
+test('testnet no-send recovery checks mined expiry and nonces without a finalized checkpoint',async t=>{
+ const {j}=store(t),p=executionFixture(),id=claimed(j,p),zero='0x'+'00'.repeat(32);
+ const c={getBlock:async args=>{assert.notEqual(args.blockTag,'finalized');return {number:30n,hash:H,timestamp:BigInt(p.instruction.expiry)};},
+  readContract:async()=>zero,getTransactionCount:async()=>7};
+ const result=await resolveNoSend(j,id,c,{confirmation:'mined'});
+ assert.equal(result.state,'cancelled');assert.equal(result.details.noSendProof.confirmation,'mined');
+ assert.ok(!result.details.noSendProof.finalizedTimestamp);
 });
 test('signed input binding and bundled fee accounting fail closed',()=>{
  const p=executionFixture();assert.deepEqual(validateExecutionPayload(p),p);const altered=structuredClone(p);altered.observation.run.policy.maxFeeMicrounits='999999999';

@@ -93,6 +93,7 @@ class Runtime:
         return False
 
     async def worker(self):
+        notifier = asyncio.create_task(self.update_worker())
         try:
             while True:
                 await self.lending_onboarding.tick()
@@ -127,10 +128,17 @@ class Runtime:
                     job.add_done_callback(self.jobs.discard)
                 await asyncio.sleep(0.5)
         finally:
+            notifier.cancel()
+            await asyncio.gather(notifier, return_exceptions=True)
             jobs = list(self.jobs)
             for job in jobs:
                 job.cancel()
             await asyncio.gather(*jobs, return_exceptions=True)
+
+    async def update_worker(self):
+        while True:
+            await self.engine.deliver_updates()
+            await asyncio.sleep(1)
 
     async def close(self):
         await self.engine.close()

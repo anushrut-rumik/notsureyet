@@ -8,6 +8,7 @@ __pycache__/
 .ruff_cache/
 .local/
 workspace/
+.codex-attachments/
 .DS_Store
 evals/reports/
 node_modules/
@@ -15,5 +16,7 @@ playwright-report/
 test-results/
 contracts/out/
 contracts/cache/
+contracts/out-lending/
+contracts/cache-lending/
 broadcast/
 contracts/lib/

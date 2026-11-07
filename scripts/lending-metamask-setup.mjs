@@ -18,8 +18,8 @@ const removeLock=()=>rm(resolve(dir,'server.lock'),{recursive:true,force:true});
 let state;
 try{state=JSON.parse(await readFile(statePath,'utf8'));assert(state.plan.owner.toLowerCase()===owner.toLowerCase(),'This setup belongs to another wallet');}
 catch(e){if(e.code!=='ENOENT'){await removeLock();throw e;}
- const artifacts={pool:JSON.parse(await readFile(resolve(root,'contracts/out/MockPool.sol/MockPool.json'),'utf8')),
-  wallet:JSON.parse(await readFile(resolve(root,'contracts/out/TestStrategyWallet.sol/TestStrategyWallet.json'),'utf8'))};
+ const artifacts={pool:JSON.parse(await readFile(resolve(root,'contracts/out-lending/MockPool.sol/MockPool.json'),'utf8')),
+  wallet:JSON.parse(await readFile(resolve(root,'contracts/out-lending/TestStrategyWallet.sol/TestStrategyWallet.json'),'utf8'))};
  assert(artifacts.pool.metadata.settings.evmVersion==='cancun'&&artifacts.wallet.metadata.settings.evmVersion==='cancun','Build with npm run lending:setup:build first');
  const nonces={};
  for(const id of ['11155111','84532']){const c=clientFor(id);assert(String(await c.getChainId())===id,'RPC chain mismatch');

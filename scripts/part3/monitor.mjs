@@ -20,11 +20,16 @@ function events(receipt,address,name){return receipt.logs.filter(l=>same(l.addre
  try{const e=decodeEventLog({abi,data:l.data,topics:l.topics,strict:true});return e.eventName===name?[e.args]:[];}catch{return [];}
 });}
 export async function finalizedReceipt(client,txHash){
+ return confirmedReceipt(client,txHash);
+}
+export async function confirmedReceipt(client,txHash,confirmation='finalized'){
+ requireFact(['mined','finalized'].includes(confirmation),'Unknown confirmation policy');
  requireFact(hash(txHash),'Expected a real transaction hash');
  let receipt;try{receipt=await client.getTransactionReceipt({hash:txHash});}catch(e){if(e.name==='TransactionReceiptNotFoundError')return null;throw e;}
- const [canonical,finalized]=await Promise.all([client.getBlock({blockNumber:receipt.blockNumber}),client.getBlock({blockTag:'finalized'})]);
+ const [canonical,finalized]=await Promise.all([client.getBlock({blockNumber:receipt.blockNumber}),
+  confirmation==='finalized'?client.getBlock({blockTag:'finalized'}):Promise.resolve(null)]);
  requireFact(same(canonical.hash,receipt.blockHash),'Noncanonical receipt; preserve operation and reconcile');
- if(finalized.number<receipt.blockNumber)return null;
+ if(finalized&&finalized.number<receipt.blockNumber)return null;
  return receipt;
 }
 export function verifySourceReceipt(record,receipt){
@@ -78,8 +83,8 @@ export async function getMessage(messageId,fetcher=fetch){
  if(response.status===404||response.status===429||response.status>=500)return null;
  requireFact(response.ok,'CCIP API request failed: '+response.status);return response.json();
 }
-async function scanEvents(client,address,event,args,fromBlock){
- const finalized=await client.getBlock({blockTag:'finalized'});let next=BigInt(fromBlock);const logs=[];
+async function scanEvents(client,address,event,args,fromBlock,confirmation='finalized'){
+ const finalized=await client.getBlock({blockTag:confirmation==='mined'?'latest':'finalized'});let next=BigInt(fromBlock);const logs=[];
  // Public RPCs limit log ranges. Bounded scans keep monitoring responsive after long downtime.
  for(let page=0;page<4&&next<=finalized.number;page++){
   const end=next+999n<finalized.number?next+999n:finalized.number;
@@ -88,39 +93,41 @@ async function scanEvents(client,address,event,args,fromBlock){
  }
  return {logs,nextBlock:String(next)};
 }
-export async function reconcile(journal,id,clients,messageReader=getMessage){
+export async function reconcile(journal,id,clients,messageReader=getMessage,{confirmation='finalized'}={}){
  let record=journal.get(id);requireFact(record,'Unknown operation');
  if(['prepared','cancelled','verified_deposit','recovered_idle'].includes(record.state))return record;
  const i=record.immutable.instruction,s=clients(i.sourceChainId),d=clients(i.sourceChainId==='11155111'?'84532':'11155111');
+ requireFact(confirmation==='finalized'||confirmation==='mined'&&['11155111','84532'].includes(i.sourceChainId),'Mined confirmation is testnet-only');
+ const receiptFor=(client,hash)=>confirmedReceipt(client,hash,confirmation);
  // A hashless uncertain submission is NOT evidence of failure. Search canonical wallet events by operation ID.
  if(!record.details.sourceHash){
   const source=record.immutable.observation.chains.find(c=>c.chainId===i.sourceChainId);
-  const {logs,nextBlock}=await scanEvents(s,i.consumer,abi[0],{operationId:i.operationId},record.details.sourceScanNextBlock??source.blockNumber);
-  if(logs.length===0)return journal.update(id,record.state,{sourceScanNextBlock:nextBlock,failureReason:'No finalized source event yet. Submission remains unknown; do not resend.'});
+  const {logs,nextBlock}=await scanEvents(s,i.consumer,abi[0],{operationId:i.operationId},record.details.sourceScanNextBlock??source.blockNumber,confirmation);
+  if(logs.length===0)return journal.update(id,record.state,{sourceScanNextBlock:nextBlock,failureReason:`No ${confirmation==='mined'?'canonical mined':'finalized'} source event yet. Submission remains unknown; do not resend.`});
   requireFact(logs.length===1,'Multiple source events for operation; inspect before continuing');
   record=journal.update(id,record.state,{sourceHash:logs[0].transactionHash});
  }
  if(['submitted','submission_unknown','failed'].includes(record.state)){
-  if(record.state==='failed')return record; // A finalized failed consumer attempt needs explicit review, never automatic retry.
-  const receipt=await finalizedReceipt(s,record.details.sourceHash);if(!receipt)return record;
+  if(record.state==='failed')return record; // A failed consumer needs no-send reconciliation, never a blind retry.
+  const receipt=await receiptFor(s,record.details.sourceHash);if(!receipt)return record;
   let details;try{details=verifySourceReceipt(record,receipt);}catch(e){return journal.update(id,'failed',{failureReason:e.message,recoveryStatus:'inspect-source-consumer'});}
   const block=await s.getBlock({blockNumber:receipt.blockNumber});
-  record=journal.update(id,'source_confirmed',{...details,sourceBlockTimestamp:String(block.timestamp)});
+  record=journal.update(id,'source_confirmed',{...details,confirmation,sourceBlockTimestamp:String(block.timestamp)});
  }
  if(record.state==='source_confirmed')record=journal.update(id,'in_transit');
  if(record.state==='idle_tokens'&&!record.details.recoveryHash){
   // Recover a lost destination retry response by its existing message ID, never by sending again.
   const start=record.details.destinationScanNextBlock??record.details.destinationBlock;
   const deposited=abi.find(e=>e.type==='event'&&e.name==='PoolDeposited'),recovered=abi.find(e=>e.type==='event'&&e.name==='DepositRecovered');
-  const scans=await Promise.all([scanEvents(d,i.destination,deposited,{messageId:record.details.messageId},start),
-   scanEvents(d,i.destination,recovered,{messageId:record.details.messageId},start)]);
+  const scans=await Promise.all([scanEvents(d,i.destination,deposited,{messageId:record.details.messageId},start,confirmation),
+   scanEvents(d,i.destination,recovered,{messageId:record.details.messageId},start,confirmation)]);
   const logs=scans.flatMap(scan=>scan.logs);requireFact(logs.length<=1,'Conflicting destination recovery events');
   if(logs.length)record=journal.update(id,record.state,{recoveryHash:logs[0].transactionHash});
   else record=journal.update(id,record.state,{destinationScanNextBlock:scans[0].nextBlock});
  }
  // A recovered pool retry has a new destination receipt, but always the original CCIP message.
  if(record.details.recoveryHash&&['idle_tokens','destination_failed'].includes(record.state)){
-  const receipt=await finalizedReceipt(d,record.details.recoveryHash);if(!receipt)return record;
+  const receipt=await receiptFor(d,record.details.recoveryHash);if(!receipt)return record;
   if(receipt.status!=='success')return journal.update(id,record.state,{failureReason:'Recovery transaction reverted',recoveryStatus:'retry-failed',lastFailedRecoveryHash:record.details.recoveryHash,recoveryHash:null});
   const recovered=events(receipt,i.destination,'DepositRecovered');
   if(recovered.some(e=>same(e.messageId,record.details.messageId))){
@@ -137,16 +144,18 @@ export async function reconcile(journal,id,clients,messageReader=getMessage){
  }
  const message=await messageReader(record.details.messageId);if(!message)return journal.update(id,record.state,{failureReason:'CCIP indexing/API pending; timeout is not failure'});
  verifyMessage(record,message);
+ const networkProgress={ccipStatus:message.status,
+  ccipFinalityType:message.finalityType??null,ccipExecutorStatus:message.executor?.status??null};
  if(message.status==='FAILED'){
   if(record.state==='idle_tokens')return record;
-  return journal.update(id,'destination_failed',{failureReason:'CCIP destination execution failed',
+  return journal.update(id,'destination_failed',{...networkProgress,failureReason:'CCIP destination execution failed',
    recoveryStatus:message.readyForManualExecution===true?'eligible-for-existing-message-recovery':'waiting-for-recovery-eligibility'});
  }
- if(message.status!=='SUCCESS')return journal.update(id,record.state,{ccipStatus:message.status,failureReason:null});
- const receipt=await finalizedReceipt(d,message.receiptTransactionHash);if(!receipt)return record;
+ if(message.status!=='SUCCESS')return journal.update(id,record.state,{...networkProgress,failureReason:null});
+ const receipt=await receiptFor(d,message.receiptTransactionHash);if(!receipt)return record;
  if(['in_transit','destination_failed'].includes(record.state))record=journal.update(id,'destination_executed',{destinationHash:receipt.transactionHash});
  const outcome=await verifyDestination(record,receipt,d),time=await executionTime(record,receipt,d);
- return journal.update(id,outcome.state,{...outcome.details,...time});
+ return journal.update(id,outcome.state,{...outcome.details,...time,...networkProgress});
 }
 async function executionTime(record,receipt,client){
  const block=await client.getBlock({blockNumber:receipt.blockNumber});
@@ -182,9 +191,11 @@ export function settleArtifact(record){
   to:record.immutable.instruction.consumer,value:'0x0',method:'settleOperation(bytes32,bytes32)',
   data:encodeFunctionData({abi,functionName:'settleOperation',args:[record.id,record.details.messageId]})});
 }
-export async function resolveNoSend(journal,id,client){
+export async function resolveNoSend(journal,id,client,{confirmation='finalized'}={}){
  const r=journal.get(id);requireFact(r&&['submission_unknown','submitted','failed'].includes(r.state),'No unresolved source submission to reconcile');
- const i=r.immutable.instruction,block=await client.getBlock({blockTag:'finalized'});
+ const i=r.immutable.instruction;
+ requireFact(confirmation==='finalized'||confirmation==='mined'&&['11155111','84532'].includes(i.sourceChainId),'Mined confirmation is testnet-only');
+ const block=await client.getBlock({blockTag:confirmation==='mined'?'latest':'finalized'});
  requireFact(block.timestamp>=BigInt(i.expiry),'Signed report is still executable; keep monitoring');
  const [messageId,active,latestNonce,pendingNonce]=await Promise.all([
   client.readContract({address:i.consumer,abi,functionName:'sentMessages',args:[i.operationId],blockNumber:block.number}),
@@ -194,10 +205,13 @@ export async function resolveNoSend(journal,id,client){
  requireFact(BigInt(messageId)===0n&&BigInt(active)===0n,'A source operation exists; reconcile its message instead of cancelling');
  requireFact(latestNonce===pendingNonce,'Owner still has a pending transaction; reconcile nonce/transaction first');
  if(r.details.sourceHash){
-  const receipt=await finalizedReceipt(client,r.details.sourceHash);requireFact(receipt,'Known source transaction is not finalized');
+  const receipt=await confirmedReceipt(client,r.details.sourceHash,confirmation);requireFact(receipt,'Known source transaction is not confirmed');
   requireFact(events(receipt,i.consumer,'SourceSubmitted').every(e=>!same(e.operationId,id)),'Source receipt contains a token send; cancellation rejected');
  }
- return journal.cancelAfterExpiryProof(id,{operationId:id,finalizedBlock:String(block.number),finalizedHash:block.hash,
-  finalizedTimestamp:String(block.timestamp),sentMessageId:messageId,activeOperation:active,ownerHasPendingTransaction:false,latestNonce,pendingNonce,
+ const canonical=await client.getBlock({blockNumber:block.number});requireFact(same(canonical.hash,block.hash),'No-send proof block is no longer canonical');
+ const checkpoint=confirmation==='mined'?{confirmation,sourceChainId:i.sourceChainId,blockNumber:String(block.number),blockHash:block.hash,blockTimestamp:String(block.timestamp)}:
+  {finalizedBlock:String(block.number),finalizedHash:block.hash,finalizedTimestamp:String(block.timestamp)};
+ return journal.cancelAfterExpiryProof(id,{operationId:id,...checkpoint,
+  sentMessageId:messageId,activeOperation:active,ownerHasPendingTransaction:false,latestNonce,pendingNonce,
   note:'No token transfer for this operation. A source attempt may still have spent gas.'});
 }

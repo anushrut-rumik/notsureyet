@@ -14,7 +14,7 @@ import {verifyRuntimeCode} from './code.mjs';
 const load=async path=>JSON.parse(await readFile(path,'utf8'));
 const save=async(path,v)=>{await mkdir(dirname(resolve(path)),{recursive:true,mode:0o700});await writeFile(path,JSON.stringify(v,(_,v)=>typeof v==='bigint'?String(v):v,2)+'\n',{flag:'wx',mode:0o600});};
 const check=(ok,message)=>{if(!ok)throw Error(message);};
-const clients=new Map(testnets.map(n=>[n.chainId,createPublicClient({transport:http(n.rpc,{timeout:15000,retryCount:1})})]));
+const clients=new Map(testnets.map(n=>[n.chainId,createPublicClient({transport:http(n.rpc,{batch:{batchSize:20,wait:10},timeout:10000,retryCount:2})})]));
 const clientFor=id=>{check(clients.has(id),'Only the two approved testnets are supported');return clients.get(id);};
 const extraAbi=parseAbi(['function quoteOperation(bytes32,uint256) view returns(uint256)','function activeOperation() view returns(bytes32)',
  'function consumed(bytes32) view returns(bool)','function getOnRamp(uint64) view returns(address)','function typeAndVersion() view returns(string)',
@@ -34,16 +34,18 @@ export async function verifyRoute(){
   return {chainId:n.chainId,sourceSelector:n.selector,destinationSelector:other.selector,router:n.router,token:n.token,remoteToken:other.token,onRamp,version,tokenPool,checkedAt:new Date().toISOString()};
  }));
 }
-export async function refresh(observation){
+export async function refresh(observation,{blockTag='finalized'}={}){
+ check(['latest','safe','finalized'].includes(blockTag),'Unsupported observation confirmation');
  const original=payloadSchema.parse(observation);
+ if(blockTag==='latest')check(original.chains.length===2&&new Set(original.chains.map(c=>c.chainId)).size===2&&original.chains.every(c=>['11155111','84532'].includes(c.chainId)),'Latest observations require both testnets');
  const route=await verifyRoute(),p=structuredClone(original),run=p.run,s=run.snapshot;
  check(run.operationId,'An explicit candidate operation ID is required');
  const sourceId=s.position.location.chainId,operationId=keccak256(toBytes(run.operationId));
  p.chains=await Promise.all(original.chains.map(async c=>{
-  const client=clientFor(c.chainId),n=testnets.find(n=>n.chainId===c.chainId),block=await client.getBlock({blockTag:'finalized'});
+  const client=clientFor(c.chainId),n=testnets.find(n=>n.chainId===c.chainId),block=await client.getBlock({blockTag});
   const [walletCode,poolCode,walletArtifact,poolArtifact]=await Promise.all([
    client.getCode({address:c.wallet,blockNumber:block.number}),client.getCode({address:c.pool,blockNumber:block.number}),
-   load('contracts/out/ExecutionStrategyWallet.sol/ExecutionStrategyWallet.json'),load('contracts/out/MockPool.sol/MockPool.json')]);
+   load('contracts/out-lending/ExecutionStrategyWallet.sol/ExecutionStrategyWallet.json'),load('contracts/out-lending/MockPool.sol/MockPool.json')]);
   verifyRuntimeCode(walletCode,walletArtifact);verifyRuntimeCode(poolCode,poolArtifact);
   const read=(functionName,args,abi=readAbi)=>client.readContract({address:c.wallet,abi,functionName,args,blockNumber:block.number});
   const [values,binding,quote,active,consumed]=await Promise.all([read('observe'),read('binding'),
@@ -105,7 +107,7 @@ async function main(){
  if(command==='route'){console.log(JSON.stringify(await verifyRoute(),null,2));return;}
  if(command==='inspect-existing'&&args.length===1){
   const manifest=await load(args[0]);check(manifest.scope==='dedicated-test-only','Dedicated test manifest required');
-  const artifact=await load('contracts/out/ExecutionStrategyWallet.sol/ExecutionStrategyWallet.json');
+  const artifact=await load('contracts/out-lending/ExecutionStrategyWallet.sol/ExecutionStrategyWallet.json');
   const chains=await Promise.all(manifest.chains.map(async c=>{
    const client=clientFor(c.chainId),n=testnets.find(n=>n.chainId===c.chainId);check(String(await client.getChainId())===c.chainId,'RPC chain mismatch');
    const block=await client.getBlock({blockTag:'finalized'}),v=await client.readContract({address:c.wallet,abi:readAbi,functionName:'observe',blockNumber:block.number});

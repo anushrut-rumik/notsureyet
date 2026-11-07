@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from agent.config import Config
+from agent.providers import Answer
 from agent.runtime import Runtime
 from agent.tools import Context
 from agent.whatsapp import IraWhatsApp
@@ -177,12 +178,18 @@ async def test_complete_mock_conversation_lifecycle(app):
     assert state["plan"]["status"] == "withdrawn"
     assert state["ledger"]["returned"] == {"11155111": str(200 * UNIT), "84532": str(800 * UNIT)}
     assert state["operations"][-1]["receipt"]["recipient"] == runtime.wallets.get(USER)["address"]
+    updates = runtime.store.events(USER, kind="lending_update")
+    assert any(e["data"]["event"] == "operation_in_transit" for e in updates)
+    for _ in updates:
+        runtime.models.message_steps.append(Answer("The mock operation has progressed; this is a test update."))
+    await runtime.engine.deliver_updates()
     await adapter.deliver_once()
     assert requests and all(
         data["to"] == "123@s.whatsapp.net" for path, data in requests if path.endswith("line-test") and "to" in data
     )
-    assert any("Still in transit" in data.get("text", "") for _, data in requests)
-    assert not runtime.models.calls  # Entire command lifecycle is deterministic; model is optional.
+    assert any("this is a test update" in data.get("text", "") for _, data in requests)
+    assert not runtime.models.calls  # Action authorization does not use model inference.
+    assert runtime.models.message_calls  # The separate writing step controls wording only.
 
 
 async def test_expert_settings_and_model_cannot_approve(app):
@@ -381,7 +388,7 @@ async def test_tools_require_authenticated_context_and_forbid_identity_overrides
     result = await runtime.registry.execute(ctx, {"function": {"name": "lending_status", "arguments": "{}"}})
     assert not result["ok"] and "authenticated WhatsApp" in result["error"]
     schemas = [t for t in runtime.registry.schemas("chat") if t["function"]["name"].startswith("lending_")]
-    assert len(schemas) == 9
+    assert len(schemas) == 11
     for tool in schemas:
         properties = tool["function"]["parameters"]["properties"]
         assert not {"user_id", "wallet", "recipient", "approved", "calldata", "command"}.intersection(properties)
@@ -408,7 +415,7 @@ async def test_missing_funds_after_approval_never_enables_management(app):
     with pytest.raises(ValueError, match="Funding is missing"):
         await runtime.lending.start(USER)
     assert runtime.lending.read(USER)["operations"] == []
-    assert runtime.lending.read(USER)["plan"]["status"] == "approved"
+    assert runtime.lending.read(USER)["plan"]["status"] == "awaiting_deposit"
 
 
 async def test_stale_prepared_recovery_and_unknown_outcome_stays_locked(app):

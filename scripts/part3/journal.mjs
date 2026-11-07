@@ -53,9 +53,21 @@ export class OperationJournal {
  });}
  cancelAfterExpiryProof(id,proof){return this.transaction(()=>{
   const r=this.get(id);if(!r||!['submission_unknown','submitted','failed'].includes(r.state))throw Error('Operation is not an unresolved source submission');
-  if(proof.operationId!==id||BigInt(proof.finalizedTimestamp)<BigInt(r.immutable.instruction.expiry)||BigInt(proof.sentMessageId)!==0n||BigInt(proof.activeOperation)!==0n||proof.ownerHasPendingTransaction!==false)
+  const mined=proof.confirmation==='mined';
+  if(mined&&(!['11155111','84532'].includes(proof.sourceChainId)||proof.sourceChainId!==r.immutable.instruction.sourceChainId))throw Error('Mined no-send proof is testnet-only');
+  if(proof.operationId!==id||BigInt(mined?proof.blockTimestamp:proof.finalizedTimestamp)<BigInt(r.immutable.instruction.expiry)||BigInt(proof.sentMessageId)!==0n||BigInt(proof.activeOperation)!==0n||proof.ownerHasPendingTransaction!==false)
    throw Error('Missing finalized no-send proof');
-  const details={...r.details,noSendProof:proof,failureReason:'Instruction expired on the finalized source chain without a token send',recoveryStatus:'verified-no-send',updatedAt:new Date().toISOString()};
+  const details={...r.details,noSendProof:proof,failureReason:'Instruction expired on the '+(mined?'canonical mined':'finalized')+' source chain without a token send',recoveryStatus:'verified-no-send',updatedAt:new Date().toISOString()};
+  this.db.prepare('UPDATE operations SET state=?,details=? WHERE id=?').run('cancelled',JSON.stringify(details),id);
+  this.db.prepare('INSERT INTO history(id,state,record) VALUES(?,?,?)').run(id,'cancelled',JSON.stringify(details));return this.get(id);
+ });}
+ cancelBeforeBroadcast(id,execution){return this.transaction(()=>{
+  const r=this.get(id);
+  if(r?.state!=='submission_unknown'||r.details.sourceHash||r.details.messageId||
+     execution?.notSubmitted!==true||execution.exitCode!==1||execution.error?.code!=='CRE_SIGNER_UNAVAILABLE')
+   throw Error('Missing proof that CLI initialization stopped before submission');
+  const details={...r.details,execution,broadcastAttempted:false,
+   recoveryStatus:'verified-before-broadcast',failureReason:execution.error.message,updatedAt:new Date().toISOString()};
   this.db.prepare('UPDATE operations SET state=?,details=? WHERE id=?').run('cancelled',JSON.stringify(details),id);
   this.db.prepare('INSERT INTO history(id,state,record) VALUES(?,?,?)').run(id,'cancelled',JSON.stringify(details));return this.get(id);
  });}

@@ -9,15 +9,17 @@ import fcntl
 import hashlib
 import json
 import re
+import sqlite3
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, closing
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
 
 from agent.approval_language import approval_in_context, is_approval
+from agent.channel_updates import ChannelUpdate, queue_update
 
 CHAINS = ("11155111", "84532")
 NAMES = {"11155111": "Ethereum Sepolia", "84532": "Base Sepolia"}
@@ -31,13 +33,22 @@ class PlanSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     amountUnits: str = Field(pattern=UINT, max_length=78)
     reserveUnits: str = Field(pattern=UINT, max_length=78)
-    days: StrictInt = Field(default=30, ge=1, le=365)
+    days: StrictInt | None = Field(default=None, ge=1, le=365)
+    durationSeconds: StrictInt | None = Field(default=None, ge=60, le=365 * 86400)
     checkIntervalSeconds: StrictInt = Field(default=3600, ge=60, le=86400)
     maxFeeMicrounits: str = Field(default="3000000", pattern=UINT, max_length=78)
     minNetBenefitMicrounits: str = Field(default="1000000", pattern=UINT, max_length=78)
     maxObservationAgeSeconds: str = Field(default="300", pattern=UINT, max_length=78)
     maxObservationSkewSeconds: str = Field(default="60", pattern=UINT, max_length=78)
     cooldownSeconds: str = Field(default="86400", pattern=UINT, max_length=78)
+
+    @model_validator(mode="after")
+    def duration(self):
+        if self.days is None and self.durationSeconds is None:
+            self.days = 30
+        if self.days is not None and self.durationSeconds is not None and self.days * 86400 != self.durationSeconds:
+            raise ValueError("days and durationSeconds describe different plan durations")
+        return self
 
     @field_validator(
         "amountUnits",
@@ -188,6 +199,8 @@ class Lending:
         return result
 
     async def testnet_portfolio(self, user, wallet):
+        if self.read(user).get("setup", {}).get("status") == "verification_pending":
+            raise ValueError("Setup receipts are being rechecked. Wait for verification before starting management.")
         # Server-owned mapping, never a tool/model supplied manifest path.
         path = self.bindings_path(user)
         if not path.exists():
@@ -264,7 +277,11 @@ class Lending:
             )
         )
 
-    async def create_plan(self, user, settings=None, *, preset_days=30, preset_interval=3600):
+    async def create_plan(
+        self, user, settings=None, *, preset_days=None, preset_duration_seconds=None, preset_interval=3600
+    ):
+        if settings is not None and (preset_days is not None or preset_duration_seconds is not None):
+            raise ValueError("Specify the duration inside expert settings or as a preset duration, not both.")
         async with self.lock(user):
             state = self.read(user)
             wallet = self.binding(user, state)
@@ -294,7 +311,8 @@ class Lending:
                 reserve = available // 5
                 settings = {
                     "amountUnits": str(available - reserve), "reserveUnits": str(reserve),
-                    "days": preset_days, "checkIntervalSeconds": preset_interval,
+                    "days": preset_days, "durationSeconds": preset_duration_seconds,
+                    "checkIntervalSeconds": preset_interval,
                 }
                 if self.mode == "testnet":
                     deployment = observed["chains"][source]
@@ -337,6 +355,7 @@ class Lending:
                 "availableUnits": str(available),
                 "status": "proposed",
                 "approvalEvent": None,
+                "startOnApproval": True,
             }
             if self.mode == "testnet":
                 path = self.bindings_path(user)
@@ -347,6 +366,7 @@ class Lending:
                     for key in ("owner", "workflowId", "chains", "maxTransactionGasWei", "linkFundingUnits")
                 }
                 plan["executionBinding"]["seedHash"] = digest(binding["seedRun"])
+                plan["executionBinding"]["setupConfirmation"] = binding.get("setupConfirmation")
                 plan["observedMarketRates"] = {c: data["aprBps"] for c, data in observed["chains"].items()}
             # Fingerprint includes deadline, wallet, limits, interval, preset and displayed balance.
             plan["digest"] = digest(plan)
@@ -359,6 +379,11 @@ class Lending:
     def review(plan):
         p, s = plan["policy"], plan["settings"]
         deadline = datetime.fromtimestamp(int(p["deadline"]), UTC).isoformat()
+        duration = s.get("durationSeconds")
+        horizon = f"{s['days']} days" if duration is None else (
+            f"{duration // 3600} hours" if duration % 3600 == 0 else
+            f"{duration // 60} minutes" if duration % 60 == 0 else f"{duration} seconds"
+        )
         return (
             f"{'TEST PRESET' if plan['preset'] else 'EXPERT TEST PLAN'} — CCIP-BnM only.\n"
             + (
@@ -385,7 +410,7 @@ class Lending:
             f"Deposit: {tokens(s['amountUnits'])}; keep {tokens(s['reserveUnits'])} idle.\n"
             "Approved markets: mock-lending-sepolia (Ethereum Sepolia, 11155111) and "
             "mock-lending-base-sepolia (Base Sepolia, 84532).\n"
-            f"Horizon: {s['days']} days, ending {deadline}. Check every {s['checkIntervalSeconds']} seconds.\n"
+            f"Horizon: {horizon}, ending {deadline}. Check every {s['checkIntervalSeconds']} seconds.\n"
             f"Fee cap per move: {tokens(s['maxFeeMicrounits'], 6)} SIM_USD; minimum extra interest after fees: "
             f"{tokens(s['minNetBenefitMicrounits'], 6)} SIM_USD.\n"
             f"Maximum movable: {tokens(p['maxMovableUnits'])} CCIP-BnM; cooldown {s['cooldownSeconds']} seconds; "
@@ -398,7 +423,8 @@ class Lending:
             "At expiry the position stays deposited until you request withdrawal. Withdrawals return on their "
             "current testnet to your verified wallet; no bank cash-out. "
             "Routine permitted moves need no new chat approval.\n"
-            "Reply approve to approve this exact plan.\n"
+            "Reply approve to approve this exact plan and start funding and management automatically. "
+            "I will confirm when the deposit is verified; you do not need to ask me to start again.\n"
             f"Plan reference: {plan['id']} {plan['version']} {plan['digest'][:12]}"
         )
 
@@ -454,15 +480,22 @@ class Lending:
             if int(self.clock()) >= int(plan["policy"]["deadline"]):
                 raise ValueError("This plan has expired. Create a new plan and review its deadline.")
             if plan["approvalEvent"]:
-                return "This exact plan is already approved. No operation was repeated."
+                return ChannelUpdate({"event": "plan_already_approved", "plan_status": plan["status"],
+                                      "action_repeated": False})
             plan["approvalEvent"] = event_id
-            plan["status"] = "approved"
+            # Authority and the durable start request commit together. Writing a
+            # reply is not responsible for starting or recovering execution.
+            plan["status"] = "awaiting_deposit"
+            plan["startRequestedAt"] = int(self.clock())
+            plan["startRequestEvent"] = event_id
             plan["policy"]["approvalId"] = f"whatsapp-event:{event_id}:{plan['digest']}"
             plan["policy"]["approvedAt"] = str(int(self.clock()))
             self.save(user, state)
-            return (
-                "Plan approved. No funds have moved yet. Say 'start managing my tokens' to fund and deposit."
-            )
+            return ChannelUpdate({"event": "plan_approved", "plan_status": "awaiting_deposit",
+                                  "start_requested": True, "follow_up_required": False,
+                                  "management_active": False,
+                                  "next_step": "Startup runs automatically in the background.",
+                                  "settings": plan["settings"], "deadline": plan["policy"]["deadline"]})
 
     def require_approved(self, state):
         plan = state["plan"]
@@ -486,26 +519,28 @@ class Lending:
                     plan["status"] = "awaiting_deposit"
                     self.save(user, state)  # Resume an authorized start even if its first RPC response is lost.
                 return await execute(self, user, state, "start")
-            if self.pending(state):
-                return {"status": "Pending operation is being tracked; no duplicate deposit or move."}
-            if plan["status"] in {"paused", "withdrawn", "withdrawing", "expired"}:
-                raise ValueError("This policy is stopped. Create and approve a new plan to invest again.")
-            if plan["status"] == "active":
-                return {"status": "Already managing this exact approved plan."}
-            ledger = state["ledger"]
-            if int(ledger["principalUnits"]):
-                raise ValueError("An existing position must be reconciled before initial deposit.")
-            amount, reserve = int(plan["settings"]["amountUnits"]), int(plan["settings"]["reserveUnits"])
-            if int(ledger["idle"][CHAINS[0]]) < amount + reserve:
-                raise ValueError("Funding is missing. Deposit is disabled until principal and reserve are available.")
-            op = self.operation(state, "deposit", str(amount), CHAINS[0])
-            plan["status"] = "awaiting_deposit"
-            self.save(user, state)  # Prepared is durable before any submission.
-            self.submit_mock(user, state, op)
-            return {
-                "operation": self.public_operation(op),
-                "message": "MOCK initial deposit submitted; not confirmed yet.",
-            }
+            return self.start_mock(user, state)
+
+    def start_mock(self, user, state):
+        """Shared locked admission for manual start and automatic approved startup."""
+        plan = self.require_approved(state)
+        if self.pending(state):
+            return {"status": "Pending operation is being tracked; no duplicate deposit or move."}
+        if plan["status"] in {"paused", "withdrawn", "withdrawing", "expired"}:
+            raise ValueError("This policy is stopped. Create and approve a new plan to invest again.")
+        if plan["status"] == "active":
+            return {"status": "Already managing this exact approved plan."}
+        ledger = state["ledger"]
+        if int(ledger["principalUnits"]):
+            raise ValueError("An existing position must be reconciled before initial deposit.")
+        amount, reserve = int(plan["settings"]["amountUnits"]), int(plan["settings"]["reserveUnits"])
+        if int(ledger["idle"][CHAINS[0]]) < amount + reserve:
+            raise ValueError("Funding is missing. Deposit is disabled until principal and reserve are available.")
+        op = self.operation(state, "deposit", str(amount), CHAINS[0])
+        plan["status"] = "awaiting_deposit"
+        self.save(user, state)
+        self.submit_mock(user, state, op)
+        return {"operation": self.public_operation(op), "mode": "mock", "deposit_confirmed": False}
 
     def operation(self, state, kind, amount, chain, *, operation_id=None):
         if self.pending(state):
@@ -561,12 +596,9 @@ class Lending:
         op["state"], op["submittedAt"] = "submitted", int(self.clock())
         # Ledger effects + submission state commit atomically. Real network effects must use an unknown-outcome journal.
         self.save(user, state)
-        self.store.notice(
-            user,
-            "MOCK: Transfer submitted."
-            if op["kind"] == "rebalance"
-            else f"MOCK: {op['kind'].capitalize()} submitted; receipt not yet confirmed.",
-        )
+        queue_update(self.store, user, "operation_submitted", {
+            "mode": "mock", "kind": op["kind"], "operation_id": op["id"], "receipt_confirmed": False,
+        })
 
     def poll_mock(self, user, state):
         op = self.pending(state)
@@ -577,7 +609,9 @@ class Lending:
         if op["kind"] == "rebalance" and op["state"] == "submitted":
             op["state"] = "in_transit"
             self.save(user, state)
-            self.store.notice(user, "MOCK: Still in transit. Destination deposit is not confirmed.")
+            queue_update(self.store, user, "operation_in_transit", {
+                "mode": "mock", "operation_id": op["id"], "destination_deposit_confirmed": False,
+            })
             return
         if op["kind"] == "deposit":
             reserve = int(p["settings"]["reserveUnits"])
@@ -615,12 +649,10 @@ class Lending:
             "recipient": p["policy"]["walletAddress"] if op["kind"] == "withdraw" else None,
         }
         self.save(user, state)
-        message = (
-            "Withdrawal receipt confirmed on the listed current testnets."
-            if op["kind"] == "withdraw"
-            else (f"Deposit confirmed on {NAMES[ledger['chainId']]}. No interest has accrued.")
-        )
-        self.store.notice(user, "MOCK: " + message)
+        queue_update(self.store, user, "operation_confirmed", {
+            "mode": "mock", "kind": op["kind"], "operation_id": op["id"],
+            "chain": NAMES[ledger["chainId"]], "interest_accrued": False,
+        })
 
     async def evaluate(self, user, *, before_submit=None):
         # Preparation and submission use separate lock admissions so pause can cancel a prepared operation.
@@ -663,7 +695,10 @@ class Lending:
                 op["evaluation"] = evaluated
             self.save(user, state)
             if not op:
-                self.store.notice(user, "MOCK: " + self.decision_message(decision))
+                if state.get("lastDecisionNotice") != decision.get("reason"):
+                    queue_update(self.store, user, "management_decision", {"mode": "mock", "decision": decision})
+                    state["lastDecisionNotice"] = decision.get("reason")
+                    self.save(user, state)
                 return evaluated
         if before_submit:
             await before_submit()
@@ -769,34 +804,51 @@ class Lending:
                 from agent.lending_live import execute
 
                 plan = state["plan"]
+                # The authenticated approval saved an automatic start request.
+                # Each action reconciles its journals before any new submission.
                 if int(self.clock()) >= int(plan["policy"]["deadline"]) and plan["status"] not in {
                     "withdrawn",
                     "withdrawing",
                 }:
                     plan["status"] = "expired"
                     self.save(user, state)
-                await execute(self, user, state, "monitor")
+                    queue_update(self.store, user, "plan_expired", {
+                        "new_investments_stopped": True, "automatic_withdrawal": False,
+                        "submitted_transfers_still_monitored": True,
+                    }, key=f"expired:{plan['id']}")
+                if (
+                    plan["status"] in {"approved", "expired"}
+                    and not state.get("liveProgress") and not self.live_work(user)
+                ):
+                    if state["error"]:
+                        state["error"] = None
+                        self.save(user, state)
+                    return
                 if state["withdrawRequested"]:
                     await execute(self, user, state, "withdraw")
                 elif plan["status"] == "awaiting_deposit":
                     await execute(self, user, state, "start")
-                elif plan["status"] == "active" and int(self.clock()) >= state["nextCheck"]:
-                    await execute(self, user, state, "evaluate")
+                else:
+                    await execute(self, user, state, "monitor")
+                    if plan["status"] == "active" and int(self.clock()) >= state["nextCheck"]:
+                        await execute(self, user, state, "evaluate")
                 return
             if self.mode == "mock":
+                if (
+                    state["plan"]["status"] == "awaiting_deposit" and not self.pending(state)
+                    and int(self.clock()) < int(state["plan"]["policy"]["deadline"])
+                ):
+                    self.start_mock(user, state)
+                    return
                 self.poll_mock(user, state)
             if self.mode == "testnet":
                 observed = await self.testnet_portfolio(user, self.binding(user, state))
                 previous = {o["id"]: o["state"] for o in state.get("testnetProgress", {}).get("operations", [])}
                 for op in observed["operations"]:
                     if previous.get(op["id"]) != op["state"]:
-                        message = {
-                            "in_transit": "Still in transit; no destination deposit confirmed.",
-                            "verified_deposit": "Destination deposit confirmed by Part 3 receipt verification.",
-                            "submitted": "Transfer submitted; not delivered yet.",
-                        }.get(op["state"])
-                        if message:
-                            self.store.notice(user, message)
+                        queue_update(self.store, user, "operation_progress", {
+                            "mode": "testnet", "operation_id": op["id"], "state": op["state"],
+                        })
                 state["testnetProgress"] = observed
                 self.save(user, state)
             p = state["plan"]
@@ -809,12 +861,10 @@ class Lending:
                     self.save(user, state)
             if int(self.clock()) >= int(p["policy"]["deadline"]) and p["status"] not in {"withdrawn", "withdrawing"}:
                 if p["status"] != "expired":
-                    self.store.notice(
-                        user,
-                        "Plan deadline reached. New investments stopped. "
-                        "Existing positions remain deposited until you request withdrawal; "
-                        "submitted transfers remain monitored.",
-                    )
+                    queue_update(self.store, user, "plan_expired", {
+                        "new_investments_stopped": True, "automatic_withdrawal": False,
+                        "submitted_transfers_still_monitored": True,
+                    })
                 p["status"] = "expired"
                 for op in state["operations"]:
                     if op["state"] == "prepared":
@@ -826,25 +876,70 @@ class Lending:
         if due:
             await self.evaluate(user)
 
+    def live_work(self, user):
+        """Inspect existing journals without creating them or needing a signer/RPC."""
+        directory = self.runtime.config.data_dir / "lending-live" / hashlib.sha256(user.encode()).hexdigest()
+        for filename, query in (
+            ("transactions.sqlite", "SELECT 1 FROM txs WHERE state!='confirmed' LIMIT 1"),
+            ("operations.sqlite", "SELECT 1 FROM operations "
+             "WHERE state NOT IN ('verified_deposit','cancelled','recovered_idle') LIMIT 1"),
+        ):
+            path = directory / filename
+            if path.exists():
+                try:
+                    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
+                        if db.execute(query).fetchone():
+                            return True
+                except sqlite3.Error:
+                    return True  # Unreadable journals require reconciliation, never assumed empty.
+        return False
+
     async def tick(self):
         if self.mode == "off" or self.clock() - self.last_scan < 5:
             return
         self.last_scan = self.clock()
         users = self.store.db.execute("SELECT user_id FROM lending_private").fetchall()
         for row in users:
+            state = self.read(row[0])
+            if self.clock() < max(state.get("managementRetryAt", 0), state.get("managementNextPollAt", 0)):
+                continue
             try:
                 await self.tick_user(row[0])
+                async with self.lock(row[0]):
+                    state = self.read(row[0])
+                    state["managementFailures"] = 0
+                    state["managementRetryAt"] = 0
+                    if self.mode == "testnet":
+                        now = int(self.clock())
+                        pending = self.live_work(row[0]) or state.get("withdrawRequested") or (
+                            state.get("plan") or {}).get("status") == "awaiting_deposit"
+                        delay = 15 if pending else min(300, max(15, state.get("nextCheck", now + 300) - now))
+                        state["managementNextPollAt"] = now + delay
+                    self.save(row[0], state)
             except (ValueError, OSError) as exc:
                 # Do not leak subprocess output, credentials, paths or private provider payloads to chat/logs.
                 async with self.lock(row[0]):
                     state = self.read(row[0])
-                    code = type(exc).__name__
-                    if state["error"] != code:
-                        self.store.notice(
-                            row[0],
-                            "Lending dependency unavailable. New actions stopped; "
-                            "existing operations remain recorded. Ask me what is happening with your tokens.",
-                        )
+                    code = getattr(exc, "code", type(exc).__name__)
+                    # A brief recovery must not cause the same warning every few
+                    # seconds. Keep notice history separate from current health.
+                    notice = state.get("managementFailureNotice") or {}
+                    now = int(self.clock())
+                    plan_id = (state.get("plan") or {}).get("id")
+                    if (notice.get("code") != code or notice.get("plan_id") != plan_id
+                            or now - notice.get("at", 0) >= 3600):
+                        queue_update(self.store, row[0], "management_check_failed", {
+                            "mode": self.mode,
+                            "failure_type": code, "cause_verified": False,
+                            "plan_status": (state.get("plan") or {}).get("status"),
+                            "plan_id": (state.get("plan") or {}).get("id"),
+                            "new_actions_admitted": False, "existing_operations_preserved": True,
+                            "will_retry": True,
+                        })
+                        state["managementFailureNotice"] = {"code": code, "plan_id": plan_id, "at": now}
+                    failures = min(state.get("managementFailures", 0) + 1, 5)
+                    state["managementFailures"] = failures
+                    state["managementRetryAt"] = now + min(30 * 2 ** (failures - 1), 300)
                     state["error"] = code
                     self.save(row[0], state)
 
@@ -884,9 +979,20 @@ class Lending:
             }
             if self.mode == "testnet":
                 result["liveProgress"] = state.get("liveProgress")
-                observed = await self.testnet_portfolio(user, wallet)
-                state["testnetProgress"] = observed
-                self.save(user, state)
+                try:
+                    observed = await self.testnet_portfolio(user, wallet)
+                except (ValueError, OSError, TimeoutError):
+                    # A read failure must not erase the approved plan or verified
+                    # receipts, nor turn a status question into another setup request.
+                    observed = state.get("testnetProgress") or {"chains": {}, "operations": []}
+                    result["observationFresh"] = False
+                    result["refreshError"] = (
+                        "Network refresh failed. Showing saved observations and transaction progress."
+                    )
+                else:
+                    state["testnetProgress"] = observed
+                    self.save(user, state)
+                    result["observationFresh"] = True
                 result["testnetProgress"] = observed
                 result["tokensInTransitUnits"] = str(
                     sum(
@@ -916,6 +1022,8 @@ class Lending:
         if "kind" in status:
             return json.dumps(status, indent=2)
         lines = [f"{status['mode'].upper()} lending: {status['status']}", f"Wallet: {status['wallet']}"]
+        if status.get("refreshError"):
+            lines.append(status["refreshError"])
         p = status["plan"]
         if p:
             deadline = datetime.fromtimestamp(int(p["policy"]["deadline"]), UTC).isoformat()
@@ -937,7 +1045,7 @@ class Lending:
             lines.append(f"Tokens in transit: {tokens(status['tokensInTransitUnits'])} CCIP-BnM")
             for chain, data in progress["chains"].items():
                 lines.append(
-                    f"{NAMES[chain]} finalized block {data['blockNumber']}: "
+                    f"{NAMES[chain]} {data.get('confirmation', 'finalized')} block {data['blockNumber']}: "
                     f"principal {tokens(data['principalUnits'])} CCIP-BnM; "
                     f"strategy idle {tokens(data['idleUnits'])} CCIP-BnM; "
                     f"strategy LINK {tokens(data['strategyLinkUnits'])}; "
@@ -949,6 +1057,8 @@ class Lending:
                     f"actual LINK fee units {op['feeToken']['quantityUnits']} "
                     "(null means not yet verified)."
                 )
+                if op.get("executionError"):
+                    lines.append(op["executionError"]["message"])
             live = status.get("liveProgress") or {}
             if live.get("status"):
                 lines.append("Live execution: " + live["status"])
@@ -1034,6 +1144,34 @@ def register_lending_tools(registry):
         return lending
 
     @registry.tool(evidence=True, modes=("chat",))
+    async def lending_activity_history(
+        ctx, limit: int = 30, verify_on_arkiv: bool = False, before_sequence: int | None = None,
+    ):
+        """Read this user's encrypted lending activity history and Arkiv storage status.
+
+        Fetch and decrypt Arkiv records when verify_on_arkiv is true. Otherwise
+        read the fast local history, clearly labelled pending or verified. This
+        tool never submits transactions or changes a lending policy.
+        """
+        import asyncio
+
+        from agent.lending_activity import ActivityLog
+
+        lending = service(ctx)
+
+        def read():
+            log = ActivityLog(lending.runtime.config)
+            try:
+                records = (log.remote_history(ctx.user_id, limit, before_sequence) if verify_on_arkiv
+                           else log.local_history(ctx.user_id, limit, before_sequence))
+                return {"storage": log.summary(ctx.user_id), "records": records,
+                        "source": "fresh Arkiv query" if verify_on_arkiv else "local activity mirror"}
+            finally:
+                log.close()
+
+        return await asyncio.to_thread(read)
+
+    @registry.tool(evidence=True, modes=("chat",))
     async def lending_portfolio(ctx):
         """Read this user's verified wallet, principal, idle balances and fee-token quantities.
 
@@ -1043,9 +1181,23 @@ def register_lending_tools(registry):
 
     @registry.tool(evidence=True, modes=("chat",))
     async def lending_setup_status(ctx):
-        """Check whether this user's strategy setup is ready, deploying, or needs review. Use before first use."""
+        """Read current setup facts, then continue answering the user's question.
+
+        This check does not show an approval review or end the turn. Use lending_prepare_setup
+        when the user asks to set up management or see the exact setup review.
+        """
         lending = service(ctx)
         return await lending.runtime.lending_onboarding.status(ctx.user_id)
+
+    @registry.tool(modes=("chat",))
+    async def lending_setup_notifications(ctx, ready_only: bool):
+        """Change setup notifications when requested: true for 'only tell me when ready' or 'stop updates';
+        false to resume progress updates. This does not pause setup or change transaction approvals.
+        """
+        lending = service(ctx)
+        message = await lending.runtime.lending_onboarding.notifications(ctx.user_id, ready_only=ready_only)
+        ctx.review_response = message
+        return {"ready_only": ready_only, "message": message}
 
     @registry.tool(modes=("chat",))
     async def lending_prepare_setup(ctx):
@@ -1054,7 +1206,12 @@ def register_lending_tools(registry):
         Does not deploy or authorize spending. The user approves in their own words in WhatsApp.
         """
         lending = service(ctx)
-        result = await lending.runtime.lending_onboarding.prepare(ctx.user_id)
+        row = lending.store.db.execute("SELECT data FROM events WHERE id=?", (ctx.user_event,)).fetchone()
+        request = json.loads(row[0]).get("content", "")
+        repeat_review = bool(re.search(
+            r"\b(?:show|see|repeat|refresh)\b.*\b(?:review|setup)\b|\breview (?:the|my) setup\b", request, re.I
+        ))
+        result = await lending.runtime.lending_onboarding.prepare(ctx.user_id, repeat_review=repeat_review)
         if result.get("review"):
             ctx.review_response = result["review"]
         return result
@@ -1066,11 +1223,14 @@ def register_lending_tools(registry):
 
     @registry.tool(modes=("chat",))
     async def lending_create_plan(
-        ctx, settings: PlanSettings | None = None, days: int = 30, check_interval_seconds: int = 3600
+        ctx, settings: PlanSettings | None = None, days: int | None = None,
+        duration_seconds: int | None = None, check_interval_seconds: int = 3600
     ):
         """Propose a test plan using explicit expert settings or a labelled beginner preset. Show its exact review.
 
-        Use days and check_interval_seconds for everyday requests; amounts/reserves come from verified deployments.
+        Use duration_seconds for hours/minutes (2 hours = 7200), or days for whole days.
+        check_interval_seconds is independent (10 minutes = 600). Never round a duration up to a day.
+        Amounts/reserves come from verified deployments. The default duration is 30 days only if unspecified.
         Never substitute identity, wallets or approval. Show the review, then accept a natural approval reply.
         """
         values = settings.model_dump() if isinstance(settings, PlanSettings) else settings
@@ -1081,7 +1241,8 @@ def register_lending_tools(registry):
                 ctx.review_response = result["review"]
             return result
         proposed = await lending.create_plan(
-            ctx.user_id, values, preset_days=days, preset_interval=check_interval_seconds
+            ctx.user_id, values, preset_days=days, preset_duration_seconds=duration_seconds,
+            preset_interval=check_interval_seconds
         )
         ctx.review_response = proposed["review"]
         return proposed
@@ -1107,7 +1268,11 @@ def register_lending_tools(registry):
 
     @registry.tool(evidence=True, modes=("chat",))
     async def lending_status(ctx, operation_id: str = ""):
-        """Inspect this user's plan or operation, pending tokens, separate fee quantities and projected returns."""
+        """Read this user's plan or operation, pending tokens, fee quantities and projected returns.
+
+        Returns setup progress when setup is incomplete. Use these facts to answer the current
+        question; a status read does not end the turn or show a new approval review.
+        """
         lending = service(ctx)
         if lending.mode == "testnet" and not lending.bindings_path(ctx.user_id).exists():
             return await lending.runtime.lending_onboarding.status(ctx.user_id)

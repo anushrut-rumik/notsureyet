@@ -3,11 +3,13 @@ import {existsSync} from 'node:fs';
 import {createPublicClient,http,decodeFunctionData,parseAbi} from 'viem';
 import {testnets} from '../../.local/lending-build/testnets.js';
 import {OperationJournal} from '../part3/journal.mjs';
-import {finalizedReceipt,reconcile} from '../part3/monitor.mjs';
+import {confirmedReceipt,reconcile} from '../part3/monitor.mjs';
+import {testnetReadTag} from '../lib/lending-confirmation.mjs';
 import {verifySetupExecution} from '../lib/lending-receipts.mjs';
 const same=(a,b)=>String(a).toLowerCase()===String(b).toLowerCase();
 const check=(ok,m)=>{if(!ok)throw Error(m);};
 export async function tracking(manifest,clients) {
+ const confirmation=testnetReadTag(manifest)==='latest'?'mined':'finalized';
  const getClient=id=>{const n=testnets.find(n=>n.chainId===id);check(n,'Unsupported network');
   return clients?clients(id):createPublicClient({transport:http(n.rpc,{timeout:10000,retryCount:1})});};
  const depositAbi=parseAbi(['function depositToPool(uint256)']);
@@ -19,7 +21,7 @@ export async function tracking(manifest,clients) {
    if(!same(call.to,chain.wallet))continue;
    let decoded;try{decoded=decodeFunctionData({abi:depositAbi,data:call.data});}catch{continue;}
    check(decoded.functionName==='depositToPool'&&decoded.args[0]>0n,'Invalid deposit');
-   const receipt=await finalizedReceipt(client,call.hash);
+   const receipt=await confirmedReceipt(client,call.hash,confirmation);
    if(!receipt){deposits.push({chainId:chain.chainId,state:'pending',hash:call.hash});continue;}
    check(receipt.status==='success','Initial deposit reverted');
    await verifySetupExecution(client,{chainId:chain.chainId,from:manifest.owner,to:chain.wallet,data:call.data},call.hash);
@@ -40,9 +42,12 @@ export async function tracking(manifest,clients) {
     check(observation.chains.length===2&&observation.chains.every(c=>manifest.chains.some(m=>
      m.chainId===c.chainId&&same(m.wallet,c.wallet)&&same(m.pool,c.pool))),'Journal deployment binding mismatch');
     let current=r,monitorError=null;
-    try{current=await reconcile(journal,r.id,getClient);}catch{monitorError='Verification pending; no retry or success inferred';}
+    try{current=await reconcile(journal,r.id,getClient,undefined,{confirmation});}catch{monitorError='Verification pending; no retry or success inferred';}
     operations.push({id:current.id,state:current.state,sourceHash:current.details.sourceHash,
+     failureReason:current.details.failureReason??null,executionError:current.details.execution?.error??null,
      destinationHash:current.details.destinationHash,messageId:current.details.messageId,
+     ccipStatus:current.details.ccipStatus??null,ccipFinalityType:current.details.ccipFinalityType??null,
+     ccipExecutorStatus:current.details.ccipExecutorStatus??null,
      principalUnits:current.immutable.instruction.amount,sourceChainId:current.immutable.instruction.sourceChainId,
      feeToken:{asset:'LINK',quantityUnits:current.details.actualLinkFeeUnits??null,
       maxQuotedUnits:current.immutable.instruction.maxLinkFee},inTransitSince:current.details.inTransitSince,

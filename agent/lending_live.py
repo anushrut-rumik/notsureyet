@@ -11,10 +11,13 @@ import os
 import signal
 from pathlib import Path
 
+from agent.channel_updates import queue_update
 from agent.lending import digest
 
 
 async def execute(service, user, state, action):
+    if action in {"start", "evaluate"} and state.get("setup", {}).get("status") == "verification_pending":
+        raise ValueError("Setup verification is pending; new investments are paused.")
     wallet = service.runtime.wallets.agent_wallet(user)
     if wallet["kind"] != "local":
         raise ValueError("Unattended lending requires the explicitly selected encrypted agent wallet.")
@@ -74,7 +77,7 @@ async def execute(service, user, state, action):
             output, _ = await process.communicate(json.dumps(payload).encode())
     except BaseException:
         # Stop the CRE grandchildren too. Their durable journal remains unknown
-        # until receipts or finalized no-send proof resolve the outcome.
+        # until receipts or canonical no-send proof resolve the outcome.
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -88,7 +91,10 @@ async def execute(service, user, state, action):
     except ValueError:
         raise ValueError("Live execution outcome unknown. Preserve journals and reconcile before retrying.") from None
     if process.returncode or "error" in result:
-        raise ValueError(result.get("error", "Live execution remains unresolved."))
+        error = ValueError(result.get("error", "Live execution remains unresolved."))
+        if result.get("failureCode") in {"RPC_UNAVAILABLE", "CRE_TIMEOUT", "CRE_AUTHENTICATION", "LIVE_CHECK_FAILED"}:
+            error.code = result["failureCode"]
+        raise error
     previous = {o["id"]: o["state"] for o in state.get("liveProgress", {}).get("operations", [])}
     for operation in result.get("operations", []):
         if operation["state"] == "verified_deposit":
@@ -97,21 +103,53 @@ async def execute(service, user, state, action):
                 prior = plan["policy"].get("lastMoveCompletedAt")
                 plan["policy"]["lastMoveCompletedAt"] = str(max(int(prior or 0), int(completed)))
         if previous.get(operation["id"]) != operation["state"]:
-            service.store.notice(user, "Live testnet transfer " + operation["id"] + ": " + operation["state"])
-    if state.get("lastLiveNoticeStatus") != result["status"]:
-        messages = {
-            "deposit_verified": "Initial testnet deposit confirmed. Approved management is active.",
-            "withdrawal_verified": "Principal withdrawal confirmed to your agent wallet on the current testnets.",
-            "funding_pending": "Testnet funding/deposit transaction pending; management is not active yet.",
-            "submission_unknown": "Transfer submission is being verified. No destination receipt yet.",
-        }
-        if result["status"] in messages:
-            service.store.notice(user, messages[result["status"]])
+            details = operation.get("details") or {}
+            no_send = details.get("recoveryStatus") in {"verified-no-send", "verified-before-broadcast"} or (
+                operation["state"] == "cancelled" and details.get("broadcastAttempted") is False
+            )
+            queue_update(service.store, user, "operation_progress", {
+                "mode": "testnet", "operation_id": operation["id"], "state": operation["state"],
+                "no_token_transfer_verified": no_send,
+                "source_transaction_hash": details.get("sourceHash"),
+                "destination_transaction_hash": details.get("destinationHash"),
+                "ccip_message_id": details.get("messageId"),
+                "ccip_explorer_url": (
+                    "https://ccip.chain.link/#/side-drawer/msg/" + details["messageId"]
+                    if details.get("messageId") else None
+                ),
+                "destination_deposit_verified": operation["state"] == "verified_deposit",
+            })
+    progress = result.get("startupProgress")
+    if progress and state.get("lastStartupNotice") != digest(progress):
+        queue_update(service.store, user, "startup_progress", {
+            "mode": "testnet", "plan_id": plan["id"], "start_requested": True,
+            "progress": progress, "management_active": result["status"] == "deposit_verified",
+        })
+        state["lastStartupNotice"] = digest(progress)
+    if not progress and state.get("lastLiveNoticeStatus") != result["status"]:
+        if result["status"] in {
+            "deposit_verified", "withdrawal_verified", "funding_pending",
+            "submission_unknown", "submitted", "preflight_failed",
+        }:
+            queue_update(service.store, user, "management_progress", {
+                "mode": "testnet", "status": result["status"],
+                "management_active": result["status"] == "deposit_verified" or plan["status"] == "active",
+                "execution_error": (result.get("execution") or {}).get("error"),
+                "broadcast_attempted": result["status"] in {"submission_unknown", "submitted"},
+            })
             state["lastLiveNoticeStatus"] = result["status"]
     if result["status"] == "no_move":
-        service.store.notice(user, "No move: " + result["decision"]["decision"]["reason"])
+        decision = result["decision"]["decision"]
+        if state.get("lastDecisionNotice") != decision.get("reason"):
+            queue_update(service.store, user, "management_decision", {"mode": "testnet", "decision": decision})
+            state["lastDecisionNotice"] = decision.get("reason")
     state["liveProgress"] = result
-    state["error"] = None
+    if action != "monitor":
+        state["error"] = ((result.get("execution") or {}).get("error") or {}).get("code")
+    elif state.get("error") in {"ValueError", "OSError", "TimeoutError", "RPC_UNAVAILABLE", "LIVE_CHECK_FAILED"}:
+        # A successful refresh resolves the previous transport/check failure.
+        # Execution-specific failures stay visible until a new evaluation resolves them.
+        state["error"] = None
     status = result["status"]
     if action == "start":
         plan["status"] = "active" if status == "deposit_verified" else "awaiting_deposit"

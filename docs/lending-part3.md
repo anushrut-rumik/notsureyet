@@ -77,7 +77,8 @@ This name is the first ten ASCII hexadecimal characters of SHA256(`lending-p3`),
 not the readable name itself. The official
 [consumer guide](https://docs.chain.link/cre/guides/workflow/using-evm-client/onchain-write/building-consumer-contracts)
 also states that `MockKeystoneForwarder` does not supply authenticated workflow
-metadata.
+metadata. This does **not** mean the metadata is empty: the deployed Sepolia
+mock forwarder passes 64 bytes from the raw report header.
 
 Accordingly, the contract recognizes only the two explicitly configured,
 verified testnet mock-forwarder addresses for the simulator path, accepts their
@@ -85,7 +86,12 @@ empty metadata and **still requires the independent owner signature over the
 exact action**. Arbitrary nonempty mock metadata is rejected. The separate
 non-mock path checks the workflow ID, correctly encoded name and owner. There
 is no production deployment or claim that the mock path proves DON consensus.
-DON means decentralized oracle network.
+DON means decentralized oracle network. Consequently, direct `writeReport`
+delivery is incompatible with the existing empty-metadata wallets. Part 4 uses
+native CRE `execution-preflight`, then relays the same signed body through the
+mock forwarder's public `route` method with empty metadata. This preserves the
+existing contracts and all owner-signature checks. The actual deployed forwarder
+was checked with historical `eth_call`, not just a simplified contract fixture.
 
 This is a limitation of simulation, not a reason to treat public mock metadata
 as authenticated identity or to remove owner authorization. The native preview
@@ -196,7 +202,7 @@ Neither proves token delivery.
 For a **completed public plan** using the existing Part 2 plan schema:
 
 ```sh
-node scripts/foundry.mjs forge build --evm-version cancun
+npm run lending:setup:build
 node scripts/part3/setup-artifacts.mjs .local/completed-plan.json .local/part3-setup-review .local/lending-metamask/manifest.json
 ```
 
@@ -248,7 +254,9 @@ cd cre-lending
 cre workflow simulate part3 --target staging-settings --non-interactive --trigger-index 0 --http-payload ../.local/part3-review/claimed-payload.json
 ```
 
-The user's testnet execution command adds `--broadcast` to that same invocation.
+Do not add `--broadcast` for the existing empty-metadata wallets: the forwarder
+accepts that transaction but its inner consumer rejects the metadata. Use the
+approved Part 4 application relay described above for those deployments.
 These commands require the confirmed setup and admitted signature above. The
 actual `claim` handoff contains the resolved absolute path, exact chains, peer, token/amount, payload hash and
 expected effects. The dedicated funded owner must be the broadcast account.

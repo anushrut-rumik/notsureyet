@@ -31,8 +31,15 @@ class Script:
     def __init__(self, *steps):
         self.steps, self.calls = deque(steps), []
         self.reaction_steps, self.reaction_calls = deque(), []
+        self.message_steps, self.message_calls = deque(), []
 
     async def complete(self, role, messages, tools):
+        if role == "message":
+            self.message_calls.append((role, messages, tools))
+            if self.message_steps:
+                step = self.message_steps.popleft()
+                return step(role, messages, tools) if callable(step) else step
+            return Answer("Your approval is saved and startup is queued. I'll confirm when the deposit is verified.")
         if role == "reaction":
             self.reaction_calls.append((role, messages, tools))
             return self.reaction_steps.popleft() if self.reaction_steps else Answer('{"label":"none"}')

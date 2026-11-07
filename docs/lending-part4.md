@@ -22,7 +22,8 @@ while existing submitted transactions continue to be checked.
 
 Then say: "Manage my test tokens for 30 days and check every minute."
 The agent shows the management plan, including the verified deposit and reserve
-limits. Approve that review, then say "start managing my tokens". Ask "what is
+limits. Approving that review automatically queues funding and deposit; no second
+start instruction is needed. Ask "what is
 happening with my tokens?", "compare the pools", "pause management", or "return
 my managed tokens to my wallet" for the corresponding actions. These requests
 use the same typed tools and receipt checks as the diagnostic command interface.
@@ -215,20 +216,30 @@ the SQLite database as a cache or restore an old policy snapshot over newer
 operation records. Cache-loss/remote recovery and multiple-host operation are
 not implemented. No signing material is passed to the model, command arguments, logs or chat.
 The fixed application broker unlocks the existing encrypted wallet and passes its
-key privately to the fixed execution child through stdin. That child supplies it
-only to the authorized CRE process environment. Public signed transactions and
+key privately to the fixed execution child through stdin. The child signs only
+the admitted testnet transaction and privately supplies the signer to CRE when needed.
+Public signed transactions and
 policy instruction signatures are durable in private local journals. They are
 not private keys.
 
 ## Live testnet setup and activation
 
 The live path uses the same approved policy and financial rules as the mock path.
-Each scheduled comparison invokes the real local CRE arithmetic workflow. A move
-then invokes the existing Part 3 execution workflow with `--broadcast`; that
-workflow independently checks the signed input, current observations and policy.
+Each scheduled comparison invokes the real local CRE workflow against canonical
+testnet observations. A move then runs the complete Part 3 `execution-preflight`
+target, which independently checks the signed input, current observations and policy.
+The application simulates both the consumer and the mock forwarder's `route`
+method before signing the exact report relay. The relay uses empty mock metadata
+because that is what the existing deployed wallets accept. Native `writeReport`
+adds 64 metadata bytes and is incompatible with these legacy wallets.
+The exact raw transaction and its hash are journaled before submission; an unknown
+response is reconciled by that hash. The relay remains within both the approved
+native fee cap and the signed CRE gas budget.
 The application scheduler keeps it running. This is **local CRE execution**, not
 a workflow deployed to a decentralized oracle network. The testnet forwarder
-requires the bound owner's signed instruction, not trusted workflow metadata.
+consumer requires the bound owner's signed instruction. Public mock workflow
+metadata is not an authenticated identity. This is CRE validation plus an
+application-owned testnet relay, not a direct `writeReport` broadcast.
 
 The agent may sign permitted actions only after the exact WhatsApp plan approval.
 The review binds both wallet/pool deployments, owner, workflow, gas/funding limits
@@ -341,9 +352,9 @@ Has the withdrawal finished?
 
 Plain `approve` binds to the latest plan review in that authenticated chat. The
 complete `approve lending PLAN_ID VERSION REVIEW_DIGEST` line remains supported.
-Approval alone moves nothing. Start funds
+Approval automatically starts funding. Startup funds
 both strategy wallets, sets their policy versions and deposits the source
-principal. Management becomes active only after exact finalized receipts and
+principal. Management becomes active only after exact successful canonical mined receipts and
 observed principal agree. The beginner schedule is hourly. For a faster live
 acceptance run, request expert settings before approval:
 
@@ -351,7 +362,18 @@ acceptance run, request expert settings before approval:
 /lending plan {"amountUnits":"800000000000000000","reserveUnits":"200000000000000000","days":30,"checkIntervalSeconds":60,"maxObservationAgeSeconds":"1800","maxObservationSkewSeconds":"900"}
 ```
 
-Receipt finality and CCIP delivery take time independently of the check interval.
+Dedicated Sepolia/Base Sepolia setup and direct wallet transactions do not wait
+for safe or finalized checkpoints. They verify successful mined receipts, exact
+transaction intent and canonical block hashes. This accepts testnet reorganization
+risk. Both chains advance independently. Live evaluations use the read-only CRE
+`testnet-fast-read-only` target with canonical mined observations; arithmetic-only
+fixtures keep their separate local target. On explicit user request, this
+dedicated testnet flow also uses canonical mined receipts for source and
+destination tracking and expiry/no-send recovery. It does not wait for a
+`finalized` checkpoint. Exact events, chain/amount bindings, nonces and canonical
+block hashes are still checked. This accepts testnet reorganisation risk.
+CCIP still controls its own delivery time, independent of the application's
+confirmation policy and check interval.
 Check actual status instead of assuming that a waiting period proves delivery.
 Never approve a second plan to resolve a pending transfer.
 
@@ -360,7 +382,7 @@ Never approve a second plan to resolve a pending transfer.
 A per-user lock coordinates scheduler, manual requests, pause and withdrawal.
 Every direct transaction is signed once, then saved with its hash and exact
 intent before submission. A lost response remains pending until that same hash
-has a canonical finalized receipt. Start intent is persisted before the first funding submission, so a restart
+has a successful canonical mined receipt. Start intent is persisted before the first funding submission, so a restart
 continues an already authorized start. The CRE operation is durably claimed before
 invoking the broadcaster. A second caller never submits it again. An expired
 instruction can be cancelled automatically only after finalized no-send proof
@@ -410,8 +432,7 @@ Ira: TEST PRESET. MOCK balances and execution. Available 1000 CCIP-BnM;
      hourly; cap 3 SIM_USD per move; minimum net improvement 1 SIM_USD.
      [Full deadline, assumptions and stop conditions, then exact approval reply.]
 You: approve lending <full-plan-id> 1 <full-review-digest>
-Ira: Exact plan approved. Use /lending start to verify funding and deposit.
-You: /lending start
+Ira: The plan is approved and startup is queued. I will confirm the deposit after verification.
 Ira: MOCK initial deposit submitted; not confirmed yet.
 Ira: MOCK: Deposit confirmed on Ethereum Sepolia. No interest has accrued.
 Ira: MOCK: No move [expected extra interest does not clear costs and minimum].

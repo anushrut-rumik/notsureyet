@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from agent import prompts
+from agent.channel_updates import ChannelUpdate
 from agent.chat_errors import record_chat_error
 from agent.inference import InferenceError
 from agent.reactions import ChatReply, decide, parse_reply, reaction_delay
@@ -31,6 +32,7 @@ class Engine:
         self.config, self.store, self.models, self.registry = config, store, models, registry
         self.locks = defaultdict(asyncio.Lock)
         self.reaction_jobs = set()
+        self.update_retry_at = {}
 
     async def close(self):
         jobs = list(self.reaction_jobs)
@@ -89,16 +91,44 @@ class Engine:
                 "or technical approval codes. Interpret the user's request and CALL the matching tools. "
                 "For 'manage/invest my tokens', 'set up CRE' or 'get started', check lending_setup_status; "
                 "if needs_setup, call lending_prepare_setup and show its exact review. If setup is ready, "
-                "call lending_create_plan, using days/check_interval_seconds from the request. "
+                "call lending_create_plan, using duration_seconds or days and check_interval_seconds from the request. "
+                "Plans support hours and minutes: two hours is duration_seconds=7200; ten-minute checks are "
+                "check_interval_seconds=600. Never round an hourly plan up to a day or change the requested duration. "
                 "Setup is separate from the management plan and moves no tokens. Never claim setup is complete "
                 "until the tool confirms ready. If deploying, give status rather than proposing another setup. "
-                "For 'start managing' after plan approval call lending_start. For 'stop/pause management' "
+                "For setup progress, waiting time, a timer, or 'is it ready', call lending_setup_status now; "
+                "do not answer from old chat messages. Its message explains the current stage, completed work, "
+                "remaining wait and user action. Status tools return facts, not a required reply. "
+                "After reading them, continue the user's original request. Answer strategy questions and "
+                "recommendations directly instead of repeating the setup announcement or its 'tell me how' prompt. "
+                "For recommendations, inspect lending_portfolio and lending_markets as needed to ground the "
+                "suggestion in this user's holdings, rates and fees. When the user asks for a plan and setup is "
+                "ready, continue to lending_create_plan rather than stopping at setup status. "
+                "Only lending_prepare_setup and lending_create_plan show exact approval reviews; "
+                "do not show one merely because you checked status. Never invent a countdown "
+                "or call network confirmation a new deployment. "
+                "For 'stop updates' or 'only tell me when ready', "
+                "call lending_setup_notifications with ready_only=true. "
+                "Call it with false to resume updates. "
+                "Do not promise a preference change without saving it with this tool. "
+                "Approving the exact management plan automatically queues funding and deposit in the worker. "
+                "Never ask for another start instruction or approval after plan approval. 'awaiting_deposit' "
+                "means startup is in progress, not that the user still needs to start it. Management is active "
+                "only after the deposit is verified. For an explicit start/retry request use lending_start. "
+                "Use liveProgress.startupProgress to distinguish policy registration, fee funding, token funding "
+                "and deposit confirmation. Never describe a policy-registration transaction as a token deposit. "
+                "For 'stop/pause management' "
                 "call lending_pause; for 'withdraw/return my managed tokens' call lending_withdraw; for "
                 "'what is happening/how is it doing' call lending_status; for market comparisons call "
                 "lending_markets; for holdings call wallet_balances or lending_portfolio. "
                 "Collect only missing settings; use the verified beginner preset when none were supplied. "
                 "The user must explicitly approve the exact review from WhatsApp. Models cannot approve. "
                 "They can reply naturally, such as 'go ahead', 'yes' or 'approve'. "
+                "The application handles those raw replies before you run: it records approval and its background "
+                "worker submits the six setup transactions. You do not need a model-callable approval tool. "
+                "Never say there is no control to deploy. If the user wants to deploy but setup still awaits "
+                "approval, explain that approval has not been recorded and call lending_prepare_setup to show "
+                "the exact review. For questions about setup, explain the status without replaying the review. "
                 "Never give shell commands or raw calldata for lending. Do not call start, pause or withdraw "
                 "unless the user requests that action. Routine scheduling is handled by the application. "
                 "Keep mock execution, testnet reads, projected interest and confirmed receipts distinct. "
@@ -230,10 +260,12 @@ class Engine:
                 if ctx.task_id:
                     self.store.flush_task(ctx.task_id)
                     await self.store.checkpoint_barrier(ctx.task_id)
-            if ctx.mode == "chat" and ctx.review_response:
-                return ChatReply(emoji_reaction=None, response_messages=[ctx.review_response])
-            if ctx.mode == "chat" and ctx.payment_response:
-                return ChatReply(emoji_reaction=None, response_messages=[ctx.payment_response])
+            if ctx.mode == "chat" and (ctx.review_response or ctx.payment_response):
+                reply = ChatReply(emoji_reaction=None, response_messages=[ctx.review_response or ctx.payment_response])
+                # Exact reviews bypass model composition, but the next turn must
+                # still see the assistant message that was actually sent.
+                self.store.message(ctx.scope, {"role": "assistant", "content": reply.model_dump_json()})
+                return reply
             if ctx.mode == "chat" and ctx.started_tasks:
                 return await self.acknowledge(ctx, role)
             if ctx.stopped:
@@ -305,6 +337,10 @@ class Engine:
                 except ValueError as exc:
                     reply = str(exc)
                 if reply is not None:
+                    if isinstance(reply, ChannelUpdate):
+                        ctx = Context(self, user_id, scope, f"turn:{event_id}", event_id)
+                        reply = await self.compose_update(ctx, reply.facts)
+                        reply = "\n\n".join(reply.response_messages)
                     self.store.message(scope, {"role": "assistant", "content": reply})
                     self.store.notice(user_id, reply)
                     self.store.answer_chat(user_id, event_id)
@@ -333,6 +369,83 @@ class Engine:
             # while tools/inference continue never sets this bit.
             self.store.answer_chat(user_id, event_id)
             return "\n\n".join(reply.response_messages)
+
+    async def compose_update(self, ctx, facts):
+        messages = [{"role": "system", "content": self.system(ctx)}, *compact(self.store.messages(ctx.scope))]
+        messages.append({"role": "system", "content": (
+            "Write a conversational reply using the application result below and the recent conversation. "
+            "This is a writing step only. Do not call tools or claim any unrecorded action. "
+            "Explain what changed and any actual next step in plain language. Do not dump status fields, "
+            "repeat the plan review, use canned acknowledgements, or tell the user to say a specific phrase. "
+            "Approval is distinct from a submitted deposit or active management. Do not invent a dependency "
+            "failure, its cause, or claim that funds moved or stayed unchanged without evidence. "
+            "When no_token_transfer_verified is true, explicitly say that this operation sent no tokens. "
+            "A source_transaction_hash by itself does not prove a token transfer or destination deposit. "
+            "When ccip_explorer_url is present, include that exact link so the user can follow the transfer. "
+            "When start_requested is true, startup is already queued and needs no follow-up instruction. "
+            "Explain that it is starting automatically. Do not ask the user whether to start. "
+            "Use the normal emoji_reaction/response_messages JSON format, with at least one written message.\n"
+            + json.dumps({"application_result": facts})
+        )})
+        answer = await self.complete(ctx, "message", messages, [])
+        if answer.calls:
+            raise ValueError("Channel update composition cannot execute tools")
+        reply = parse_reply(answer.text)
+        if not reply.response_messages:
+            raise ValueError("A channel update needs a written message")
+        if answer.metadata:
+            self.store.event(ctx.user_id, "inference_usage", answer.metadata)
+        return reply
+
+    async def deliver_updates(self):
+        rows = self.store.db.execute(
+            "SELECT e.id,e.user_id,e.data FROM events e WHERE e.kind='lending_update' "
+            "AND NOT EXISTS (SELECT 1 FROM events sent WHERE sent.user_id=e.user_id "
+            "AND sent.kind IN ('chat_message','lending_update_discarded') "
+            "AND json_extract(sent.data,'$.lendingUpdateId')=e.id) "
+            "ORDER BY e.id LIMIT 10"
+        ).fetchall()
+        for row in rows:
+            if time.monotonic() < self.update_retry_at.get(row["id"], 0):
+                continue
+            user, scope = row["user_id"], f"chat:{row['user_id']}"
+            async with self.locks[scope]:
+                ctx = Context(self, user, scope, f"update:{row['id']}", 0)
+                payload = json.loads(row["data"])
+                current = self.lending.read(user)
+                plan = current.get("plan") or {}
+                facts = payload["facts"]
+                if (
+                    payload["event"] == "management_check_failed" and not current.get("error")
+                    or facts.get("plan_id") and facts["plan_id"] != plan.get("id")
+                    or self.newer_operation_update(user, row["id"], facts)
+                ):
+                    self.store.event(user, "lending_update_discarded", {"lendingUpdateId": row["id"]})
+                    continue
+                payload["current_state"] = {"plan_status": plan.get("status"), "error": current.get("error")}
+                try:
+                    reply = await self.compose_update(ctx, payload)
+                except Exception as exc:
+                    record_chat_error(self.store, user, exc, phase="channel_update")
+                    self.update_retry_at[row["id"]] = time.monotonic() + 60
+                    continue
+                if self.newer_operation_update(user, row["id"], facts):
+                    self.store.event(user, "lending_update_discarded", {"lendingUpdateId": row["id"]})
+                    continue
+                # One durable channel event per update also acts as its delivery marker.
+                self.store.event(user, "chat_message", {
+                    "role": "assistant", "content": "\n\n".join(reply.response_messages),
+                    "lendingUpdateId": row["id"],
+                })
+                self.store.message(scope, {"role": "assistant", "content": reply.model_dump_json()})
+                self.update_retry_at.pop(row["id"], None)
+
+    def newer_operation_update(self, user, event_id, facts):
+        operation = facts.get("operation_id")
+        return operation and self.store.db.execute(
+            "SELECT 1 FROM events WHERE user_id=? AND kind='lending_update' AND id>? "
+            "AND json_extract(data,'$.facts.operation_id')=? LIMIT 1", (user, event_id, operation),
+        ).fetchone()
 
     async def work(self, task):
         user, task_id = task["user_id"], task["id"]
